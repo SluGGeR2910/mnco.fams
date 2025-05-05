@@ -17,7 +17,10 @@ db_port = os.environ.get("DB_PORT", "5432")  # Default to 5432
 db_name = os.environ["DB_NAME"]
 
 try:
-    engine = create_engine(f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=require")
+    engine = create_engine(
+    f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}",
+    connect_args={"sslmode": "require"}
+)
 
 except Exception as e:
     st.error(f"❌ Database connection failed: {e}")
