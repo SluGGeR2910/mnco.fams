@@ -2,12 +2,12 @@
 
 import streamlit as st
 import pandas as pd
+import os
 from sqlalchemy import create_engine, text
 
 # -----------------------------
 # CONFIG: Database Connection
 # -----------------------------
-import os
 
 db_user = os.environ["DB_USER"]
 db_password = os.environ["DB_PASSWORD"]
