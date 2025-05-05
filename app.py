@@ -1,37 +1,33 @@
-import os
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
-
-# Load environment variables from .env file (for local development)
-load_dotenv()
 
 # -----------------------------
 # CONFIG: Database Connection
 # -----------------------------
-db_user = os.environ["DB_USER"]
-db_password = os.environ["DB_PASSWORD"]
-db_host = os.environ["DB_HOST"]
-db_port = os.environ.get("DB_PORT", "5432")  # Default to 5432
-db_name = os.environ["DB_NAME"]
+db_user = st.secrets["database"]["DB_USER"]
+db_password = st.secrets["database"]["DB_PASSWORD"]
+db_host = st.secrets["database"]["DB_HOST"]
+db_port = st.secrets["database"].get("DB_PORT", "5432")
+db_name = st.secrets["database"]["DB_NAME"]
 
 try:
     engine = create_engine(
-    f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}",
-    connect_args={"sslmode": "require"}
-)
-
+        f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}",
+        connect_args={"sslmode": "require"}
+    )
 except Exception as e:
-    st.error(f"❌ Database connection failed: {e}")
+    st.error(f"❌ Failed to connect to database: {e}")
+    st.stop()
 
 # -----------------------------
 # HELPERS
 # -----------------------------
 
 def get_passcode():
+    query = text("SELECT value FROM settings WHERE key = 'qr_viewer_passcode'")
     with engine.connect() as conn:
-        result = conn.execute(text("SELECT value FROM settings WHERE key = 'qr_viewer_passcode'"))
+        result = conn.execute(query)
         return result.scalar()
 
 def fetch_asset(asset_id):
@@ -56,12 +52,14 @@ def fetch_audit_log():
     return df
 
 def update_asset(asset_id, field, value):
-    with engine.connect() as conn:
-        conn.execute(text(f"UPDATE assets SET {field} = :value WHERE asset_id = :asset_id"),
-                     {"value": value, "asset_id": asset_id})
-        conn.execute(text("INSERT INTO audit_log (asset_id, action, details) VALUES (:asset_id, 'update', :details)"),
-                     {"asset_id": asset_id, "details": f"{field} updated to {value}"})
-        conn.commit()
+    update_query = text(f"UPDATE assets SET {field} = :value WHERE asset_id = :asset_id")
+    audit_query = text("""
+        INSERT INTO audit_log (asset_id, action, details)
+        VALUES (:asset_id, 'update', :details)
+    """)
+    with engine.begin() as conn:  # auto-commit transaction
+        conn.execute(update_query, {"value": value, "asset_id": asset_id})
+        conn.execute(audit_query, {"asset_id": asset_id, "details": f"{field} updated to {value}"})
 
 # -----------------------------
 # SIDEBAR NAV
@@ -109,7 +107,7 @@ elif selected_tab == "Editable FAR":
     if user_role in ["Developer", "Client"]:
         st.header("📋 Editable Fixed Asset Register")
         df = fetch_far()
-        edited_df = st.data_editor(df, num_rows="dynamic")
+        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 
         if st.button("Save Changes"):
             for idx, row in edited_df.iterrows():
@@ -117,7 +115,7 @@ elif selected_tab == "Editable FAR":
                     update_asset(row["asset_id"], col, row[col])
             st.success("✅ Changes saved.")
     else:
-        st.error("Unauthorized Access")
+        st.error("❌ Unauthorized Access")
 
 # -----------------------------
 # AUDIT TRAIL
@@ -126,7 +124,7 @@ elif selected_tab == "Audit Trail":
     if user_role in ["Developer", "Client", "Auditor"]:
         st.header("🕵️ Audit Log")
         df_log = fetch_audit_log()
-        st.dataframe(df_log)
+        st.dataframe(df_log, use_container_width=True)
         st.download_button("Download Audit Log (CSV)", df_log.to_csv(index=False), "audit_log.csv", "text/csv")
     else:
-        st.error("Unauthorized Access")
+        st.error("❌ Unauthorized Access")
