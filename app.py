@@ -43,17 +43,6 @@ def update_asset(asset_id, field, value):
     }).execute()
 
 # -----------------------------
-# ------------------ SESSION STATE INIT ------------------
-
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'role' not in st.session_state:
-    st.session_state.role = None
-if 'qr_codes' not in st.session_state:
-    st.session_state.qr_codes = {}
-if 'far_df' not in st.session_state:
-    st.session_state.far_df = pd.read_sql_query("SELECT * FROM far", conn)
-
 # ------------------ USER AUTH ------------------
 
 users = {
