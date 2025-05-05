@@ -90,38 +90,47 @@ if tab == "Home":
     st.write("Track, manage, and retrieve asset info in real-time via QR codes or the FAR.")
 
 # ----------------------------- FAR -----------------------------
-elif tab == "FAR" and st.session_state.role in ["Admin", "Auditor"]:
-    st.title("📋 Fixed Asset Register")
-    is_editable = st.session_state.role == "Admin"
-    far_df = fetch_far().fillna("")
-    st.session_state.far_df = far_df
+# ----------------------------- FAR -----------------------------
+elif tab == "FAR":
+    st.title("📋 Fixed Asset Register (Editable)")
 
+    # Only Admins can edit
+    is_admin = st.session_state.role == "Admin"
+    original_df = fetch_far().fillna("")
+
+    # Save in session
+    st.session_state.far_df = original_df
+
+    # Editable table
+    st.markdown("🔧 Edit the asset data below:")
     edited_df = st.data_editor(
-        st.session_state.far_df,
+        original_df,
         use_container_width=True,
-        num_rows="dynamic" if is_editable else "fixed",
-        disabled=not is_editable
+        num_rows="dynamic" if is_admin else "fixed",
+        disabled=not is_admin
     )
 
-    if st.button("💾 Save FAR") and is_editable:
+    # Save button for Admins
+    if is_admin and st.button("💾 Save Changes"):
         edited_df = edited_df.fillna("")
-        original_df = fetch_far().fillna("")
         original_ids = set(original_df["asset_id"].astype(str))
-        new_ids = set(edited_df["asset_id"].astype(str))
+        updated_ids = set(edited_df["asset_id"].astype(str))
 
+        # Loop through edited rows
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
-            existing_row = original_df[original_df["asset_id"] == asset_id]
+            old_row = original_df[original_df["asset_id"] == asset_id]
 
-            if not existing_row.empty:
+            # Update or Insert
+            if not old_row.empty:
                 for col in edited_df.columns:
-                    old_val = str(existing_row.iloc[0][col]).strip()
-                    new_val = str(row[col]).strip()
-                    if old_val != new_val:
+                    old = str(old_row.iloc[0][col]).strip()
+                    new = str(row[col]).strip()
+                    if old != new:
                         supabase.table("audit_log").insert({
                             "asset_id": asset_id,
                             "action": "update",
-                            "details": f"{col} updated from {old_val} to {new_val}",
+                            "details": f"{col} changed from {old} to {new}",
                             "changed_by": st.session_state.username,
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }).execute()
@@ -136,19 +145,21 @@ elif tab == "FAR" and st.session_state.role in ["Admin", "Auditor"]:
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
 
+            # Save to Supabase
             supabase.table("assets").upsert(row.to_dict()).execute()
 
+            # Auto-generate QR code
             if asset_id not in st.session_state.qr_codes:
-                qr_img = qrcode.make(f"https://slugtries.onrender.com?asset_id={asset_id}")
+                qr_url = f"https://slugtries.onrender.com?asset_id={asset_id}"
+                qr_img = qrcode.make(qr_url)
                 buffer = io.BytesIO()
                 qr_img.save(buffer, format="PNG")
                 buffer.seek(0)
                 st.session_state.qr_codes[asset_id] = buffer.getvalue()
-                os.makedirs("qr_folder", exist_ok=True)
-                with open(os.path.join("qr_folder", f"{asset_id}.png"), "wb") as f:
-                    f.write(st.session_state.qr_codes[asset_id])
 
-        for asset_id in original_ids - new_ids:
+        # Handle deletions
+        deleted_ids = original_ids - updated_ids
+        for asset_id in deleted_ids:
             supabase.table("assets").delete().eq("asset_id", asset_id).execute()
             supabase.table("audit_log").insert({
                 "asset_id": asset_id,
@@ -157,21 +168,16 @@ elif tab == "FAR" and st.session_state.role in ["Admin", "Auditor"]:
                 "changed_by": st.session_state.username,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }).execute()
-            if asset_id in st.session_state.qr_codes:
-                del st.session_state.qr_codes[asset_id]
-                try:
-                    os.remove(os.path.join("qr_folder", f"{asset_id}.png"))
-                except FileNotFoundError:
-                    pass
+            st.session_state.qr_codes.pop(asset_id, None)
 
-        st.session_state.far_df = edited_df
-        st.success("✅ FAR saved & audit log updated!")
+        st.success("✅ Changes saved and QR codes updated!")
 
+    # Excel download
     with st.expander("⬇️ Download FAR"):
-        excel_io = io.BytesIO()
-        st.session_state.far_df.to_excel(excel_io, index=False)
-        excel_io.seek(0)
-        st.download_button("Download FAR", excel_io, file_name="Fixed_Asset_Register.xlsx")
+        excel_buf = io.BytesIO()
+        edited_df.to_excel(excel_buf, index=False)
+        excel_buf.seek(0)
+        st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
 
 # ----------------------------- QR CODES -----------------------------
 elif tab == "QR Codes" and st.session_state.role == "Admin":
