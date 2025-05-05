@@ -1,14 +1,7 @@
-streamlit
-sqlalchemy
-psycopg2-binary
-pandas
-python-dotenv
-supabase
-streamlit==1.33.0
-pandas==2.2.2
-openpyxl
-streamlit-authenticator==0.4.x
-pandas
-requests
-Pillow
-qrcode
+streamlit==1.21.0
+supabase==0.3.0
+pandas==1.5.3
+qrcode[pil]==7.3.1
+Pillow==9.2.0
+openpyxl==3.0.10
+sqlite3==3.36.0  # Only needed if you're using SQLite for local testing (optional)
