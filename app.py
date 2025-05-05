@@ -12,9 +12,8 @@ from sqlalchemy import create_engine, text
 db_user = os.environ["DB_USER"]
 db_password = os.environ["DB_PASSWORD"]
 db_host = os.environ["DB_HOST"]
-db_port = os.environ.get("DB_PORT") or "5432"
+db_port = os.environ.get("DB_PORT") or "6543"
 db_name = os.environ["DB_NAME"]
-
 
 engine = create_engine(f"postgresql://{db_user}:{db_password}@[2406:da1a:6b0:f60e:bb32:de61:dd7c:ed0d]:{db_port}/{db_name}")
 
