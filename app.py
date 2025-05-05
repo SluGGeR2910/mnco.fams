@@ -266,3 +266,4 @@ elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
         audit_df.to_excel(download_buffer, index=False)
         download_buffer.seek(0)
         st.download_button("⬇️ Download Full Audit Trail (Excel)", download_buffer, file_name="Audit_Trail.xlsx")
+
