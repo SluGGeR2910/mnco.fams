@@ -4,3 +4,11 @@ psycopg2-binary
 pandas
 python-dotenv
 supabase
+streamlit==1.33.0
+pandas==2.2.2
+openpyxl
+streamlit-authenticator==0.4.x
+pandas
+requests
+Pillow
+qrcode
