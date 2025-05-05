@@ -62,7 +62,7 @@ if selected_tab == "Home":
 # ASSET INTELLIGENCE (QR Viewer)
 # -----------------------------
 elif selected_tab == "Asset Intelligence":
-    asset_id = st.experimental_get_query_params().get("asset_id", [""])[0]
+    asset_id = st.query_params.get("asset_id", [""])[0]
     if not asset_id:
         asset_id = st.text_input("Enter Asset ID from QR")
 
