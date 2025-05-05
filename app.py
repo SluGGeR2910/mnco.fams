@@ -5,6 +5,7 @@ import os
 import io
 import zipfile
 from PIL import Image
+import qrcode
 from datetime import datetime
 
 # -----------------------------
