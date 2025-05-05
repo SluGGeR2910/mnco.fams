@@ -1,4 +1,6 @@
 # app.py
+import os
+port = int(os.environ.get("PORT", 8501))
 
 import streamlit as st
 import pandas as pd
