@@ -34,6 +34,7 @@ def fetch_audit_log():
     return pd.DataFrame(result.data)
 
 def update_asset(asset_id, field, value):
+    # Update the asset in the "assets" table and log the action in the "audit_log"
     supabase.table("assets").update({field: value}).eq("asset_id", asset_id).execute()
     supabase.table("audit_log").insert({
         "asset_id": asset_id,
@@ -42,14 +43,35 @@ def update_asset(asset_id, field, value):
     }).execute()
 
 # -----------------------------
+# ROLE BASED AUTHENTICATION
+# -----------------------------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+# User login based on role and password
+if not st.session_state.authenticated:
+    st.sidebar.subheader("👤 Login")
+    user_role = st.sidebar.selectbox("Role", ["Developer", "Client", "Auditor", "QR Viewer"])
+    password = st.sidebar.text_input("Password", type="password")
+
+    # Role-specific login password check
+    correct_password = st.secrets.get(f"{user_role}_PASSWORD", "")  # Store the passwords in streamlit secrets
+
+    if st.sidebar.button("Login"):
+        if password == correct_password:
+            st.session_state.authenticated = True
+            st.session_state.user_role = user_role
+            st.success(f"Logged in as {user_role}")
+        else:
+            st.error("Invalid password, please try again.")
+else:
+    user_role = st.session_state.user_role
+
+# -----------------------------
 # SIDEBAR NAV
 # -----------------------------
 tabs = ["Home", "Asset Intelligence", "Editable FAR", "Audit Trail"]
 selected_tab = st.sidebar.selectbox("Select Tab", tabs)
-
-st.sidebar.markdown("---")
-st.sidebar.write("👤 Role-Based Access")
-user_role = st.sidebar.selectbox("Role", ["Developer", "Client", "Auditor", "QR Viewer"])
 
 # -----------------------------
 # HOME TAB
@@ -62,40 +84,46 @@ if selected_tab == "Home":
 # ASSET INTELLIGENCE (QR Viewer)
 # -----------------------------
 elif selected_tab == "Asset Intelligence":
-    asset_id = st.query_params.get("asset_id", [""])[0]
-    if not asset_id:
-        asset_id = st.text_input("Enter Asset ID from QR")
+    if user_role == "QR Viewer":
+        asset_id = st.query_params.get("asset_id", [""])[0]
+        if not asset_id:
+            asset_id = st.text_input("Enter Asset ID from QR")
 
-    entered_passcode = st.text_input("Enter Viewer Passcode", type="password")
-    correct_passcode = get_passcode()
+        entered_passcode = st.text_input("Enter Viewer Passcode", type="password")
+        correct_passcode = get_passcode()
 
-    if st.button("Access Asset"):
-        if entered_passcode == correct_passcode:
-            st.success("✅ Access granted")
-            df = fetch_asset(asset_id)
-            if not df.empty:
-                st.table(df)
+        if st.button("Access Asset"):
+            if entered_passcode == correct_passcode:
+                st.success("✅ Access granted")
+                df = fetch_asset(asset_id)
+                if not df.empty:
+                    st.table(df)
+                else:
+                    st.warning("Asset not found.")
             else:
-                st.warning("Asset not found.")
-        else:
-            st.error("❌ Invalid passcode.")
+                st.error("❌ Invalid passcode.")
+    else:
+        st.error("❌ Only QR Viewers can access this tab.")
 
 # -----------------------------
-# EDITABLE FAR
+# EDITABLE FAR (Editable Fixed Asset Register)
 # -----------------------------
 elif selected_tab == "Editable FAR":
     if user_role in ["Developer", "Client"]:
         st.header("📋 Editable Fixed Asset Register")
         df = fetch_far()
+
+        # Editable DataFrame for FAR
         edited_df = st.data_editor(df, num_rows="dynamic")
 
+        # Save changes button
         if st.button("Save Changes"):
             for idx, row in edited_df.iterrows():
                 for col in ["asset_name", "description", "purchase_date", "location", "status", "cost"]:
                     update_asset(row["asset_id"], col, row[col])
             st.success("✅ Changes saved.")
     else:
-        st.error("Unauthorized Access")
+        st.error("❌ Unauthorized Access. Only Developer and Client roles can edit the FAR.")
 
 # -----------------------------
 # AUDIT TRAIL
@@ -107,4 +135,4 @@ elif selected_tab == "Audit Trail":
         st.dataframe(df_log)
         st.download_button("Download Audit Log (CSV)", df_log.to_csv(index=False), "audit_log.csv", "text/csv")
     else:
-        st.error("Unauthorized Access")
+        st.error("❌ Unauthorized Access. Only Developer, Client, and Auditor roles can access the Audit Log.")
