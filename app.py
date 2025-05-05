@@ -2,6 +2,11 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 import os
+import io
+import zipfile
+from PIL import Image
+import qrcode
+from datetime import datetime
 
 # -----------------------------
 # CONFIG: Supabase Connection
@@ -43,7 +48,8 @@ def update_asset(asset_id, field, value):
     }).execute()
 
 # -----------------------------
-# ------------------ USER AUTH ------------------
+# USER AUTH
+# -----------------------------
 
 users = {
     "Slugger": {"password": "dam2910", "role": "Admin"},
@@ -70,7 +76,9 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# ------------------ ASSET REDIRECT FROM QR ------------------
+# -----------------------------
+# ASSET REDIRECT FROM QR
+# -----------------------------
 
 asset_id_qr = st.query_params.get("asset_id", None)
 
@@ -92,27 +100,33 @@ if asset_id_qr:
         st.warning("No matching asset found for this QR.")
         st.stop()
 
-# ------------------ NAVIGATION ------------------
+# -----------------------------
+# NAVIGATION
+# -----------------------------
 
 tabs = ["Home", "QR Codes"]
 if st.session_state.role == "Admin":
     tabs += ["FAR", "Audit Trail"]
 tab = st.sidebar.radio("Navigate", tabs)
 
-# ------------------ HOME ------------------
+# -----------------------------
+# HOME
+# -----------------------------
 
 if tab == "Home":
     st.title("🏠 Welcome to Slugger's Digital Asset Management System")
     st.write("Your centralized platform to seamlessly track, manage, and retrieve asset information — all in real time. Whether you're scanning a QR code or exploring the FAR, this tool ensures transparency, efficiency, and control over your organization’s valuable assets.!")
 
-# ------------------ FAR ------------------
+# -----------------------------
+# FAR
+# -----------------------------
 
 elif tab == "FAR" and st.session_state.role in ["Admin", "Auditor"]:
     st.title("📋 Fixed Asset Register")
 
     is_editable = st.session_state.role == "Admin"
 
-    far_df = pd.read_sql_query("SELECT * FROM far", conn)
+    far_df = fetch_far()  # Fetch data from Supabase
     st.session_state.far_df = far_df.fillna("")
 
     edited_df = st.data_editor(
@@ -124,7 +138,7 @@ elif tab == "FAR" and st.session_state.role in ["Admin", "Auditor"]:
 
     if st.button("💾 Save FAR") and is_editable:
         edited_df = edited_df.fillna("")
-        original_df = pd.read_sql_query("SELECT * FROM far", conn).fillna("")
+        original_df = fetch_far().fillna("")  # Fetch data from Supabase
         original_ids = set(original_df["asset_id"].astype(str))
         new_ids = set(edited_df["asset_id"].astype(str))
 
@@ -137,47 +151,35 @@ elif tab == "FAR" and st.session_state.role in ["Admin", "Auditor"]:
                     old_val = str(existing_row.iloc[0][col]).strip()
                     new_val = str(row[col]).strip()
                     if old_val != new_val:
-                        cursor.execute('''
-                            INSERT INTO audit_trail (asset_id, field_changed, old_value, new_value, changed_by, timestamp)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        ''', (
-                            asset_id,
-                            col,
-                            old_val,
-                            new_val,
-                            st.session_state.username,
-                            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        ))
+                        supabase.table("audit_log").insert({
+                            "asset_id": asset_id,
+                            "action": "update",
+                            "details": f"{col} updated from {old_val} to {new_val}",
+                            "changed_by": st.session_state.username,
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }).execute()
             else:
                 for col in edited_df.columns:
                     new_val = str(row[col]).strip()
-                    cursor.execute('''
-                        INSERT INTO audit_trail (asset_id, field_changed, old_value, new_value, changed_by, timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (
-                        asset_id,
-                        col,
-                        "",
-                        new_val,
-                        st.session_state.username,
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    ))
+                    supabase.table("audit_log").insert({
+                        "asset_id": asset_id,
+                        "action": "insert",
+                        "details": f"New asset added: {col} = {new_val}",
+                        "changed_by": st.session_state.username,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }).execute()
 
-            cursor.execute('''
-                INSERT OR REPLACE INTO far (
-                    asset_id, group_of_asset, asset_name, vendor, invoice_date,
-                    amount, depreciation_method, useful_life_years, depreciation_rate,
-                    accumulated_depreciation, net_block
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', tuple(row))
+            # Update the asset
+            supabase.table("assets").upsert(dict(row.to_dict())).execute()
 
+            # Handle QR codes
             if asset_id not in st.session_state.qr_codes:
                 qr_img = qrcode.make(f"https://slugtries.onrender.com?asset_id={asset_id}")
                 buffer = io.BytesIO()
                 qr_img.save(buffer, format="PNG")
                 buffer.seek(0)
                 st.session_state.qr_codes[asset_id] = buffer.getvalue()
-                with open(os.path.join(qr_folder, f"{asset_id}.png"), "wb") as f:
+                with open(os.path.join("qr_folder", f"{asset_id}.png"), "wb") as f:
                     f.write(st.session_state.qr_codes[asset_id])
 
         removed_ids = original_ids - new_ids
@@ -185,24 +187,19 @@ elif tab == "FAR" and st.session_state.role in ["Admin", "Auditor"]:
             if asset_id in st.session_state.qr_codes:
                 del st.session_state.qr_codes[asset_id]
                 try:
-                    os.remove(os.path.join(qr_folder, f"{asset_id}.png"))
+                    os.remove(os.path.join("qr_folder", f"{asset_id}.png"))
                 except FileNotFoundError:
                     pass
 
-            cursor.execute("DELETE FROM far WHERE asset_id = ?", (asset_id,))
-            cursor.execute('''
-                INSERT INTO audit_trail (asset_id, field_changed, old_value, new_value, changed_by, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                asset_id,
-                "Asset Deleted",
-                "EXISTED",
-                "DELETED",
-                st.session_state.username,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ))
+            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
+            supabase.table("audit_log").insert({
+                "asset_id": asset_id,
+                "action": "delete",
+                "details": "Asset deleted",
+                "changed_by": st.session_state.username,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }).execute()
 
-        conn.commit()
         st.session_state.far_df = edited_df
         st.success("✅ FAR saved and audit trail updated!")
 
@@ -212,7 +209,9 @@ elif tab == "FAR" and st.session_state.role in ["Admin", "Auditor"]:
         excel_buffer.seek(0)
         st.download_button("Download FAR", excel_buffer, file_name="Fixed_Asset_Register.xlsx")
 
-# ------------------ QR CODES ------------------
+# -----------------------------
+# QR CODES
+# -----------------------------
 
 elif tab == "QR Codes" and st.session_state.role == "Admin":
     st.title("🔗 QR Codes")
@@ -234,12 +233,14 @@ elif tab == "QR Codes" and st.session_state.role == "Admin":
     else:
         st.info("No QR codes available yet. Go to FAR tab and save some assets.")
 
-# ------------------ AUDIT TRAIL ------------------
+# -----------------------------
+# AUDIT TRAIL
+# -----------------------------
 
 elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
     st.title("🕵️ Audit Trail")
 
-    audit_df = pd.read_sql_query("SELECT * FROM audit_trail ORDER BY timestamp DESC", conn)
+    audit_df = fetch_audit_log()  # Fetch data from Supabase
 
     if audit_df.empty:
         st.info("No changes logged yet.")
@@ -265,4 +266,3 @@ elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
         audit_df.to_excel(download_buffer, index=False)
         download_buffer.seek(0)
         st.download_button("⬇️ Download Full Audit Trail (Excel)", download_buffer, file_name="Audit_Trail.xlsx")
-
