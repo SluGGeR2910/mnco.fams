@@ -16,7 +16,7 @@ db_port = os.environ.get("DB_PORT") or "5432"
 db_name = os.environ["DB_NAME"]
 
 
-engine = create_engine(f"postgresql://{db_user}:{db_password}@ 2406:da1a:6b0:f60e:bb32:de61:dd7c:ed0d:{db_port}/{db_name}")
+engine = create_engine(f"postgresql://{db_user}:{db_password}@(2406:da1a:6b0:f60e:bb32:de61:dd7c:ed0d):{db_port}/{db_name}")
 
 # -----------------------------
 # HELPERS
