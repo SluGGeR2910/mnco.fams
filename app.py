@@ -1,21 +1,25 @@
-# app.py
 import os
 import streamlit as st
 import pandas as pd
-import os
 from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (for local development)
+load_dotenv()
 
 # -----------------------------
 # CONFIG: Database Connection
 # -----------------------------
-
 db_user = os.environ["DB_USER"]
 db_password = os.environ["DB_PASSWORD"]
 db_host = os.environ["DB_HOST"]
-db_port = os.environ.get("DB_PORT") or "5432"
+db_port = os.environ.get("DB_PORT", "5432")  # Default to 5432
 db_name = os.environ["DB_NAME"]
 
-engine = create_engine(f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}")
+try:
+    engine = create_engine(f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}")
+except Exception as e:
+    st.error(f"❌ Database connection failed: {e}")
 
 # -----------------------------
 # HELPERS
