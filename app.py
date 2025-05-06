@@ -123,8 +123,6 @@ elif tab == "FAR":
     for col in numeric_cols:
         original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
 
-    # Now the edited_df should be defined before this block
-    edited_df = original_df.copy()  # Make sure this is defined before use
 
     # Handling the update or insertion of data
     for _, row in edited_df.iterrows():
