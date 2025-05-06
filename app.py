@@ -158,7 +158,6 @@ elif tab == "FAR":
             for col in edited_df.columns:
                 old = str(old_row.iloc[0][col]).strip()
                 new = str(row[col]).strip()
-                
                 if old != new:
 
                     supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
@@ -172,6 +171,9 @@ elif tab == "FAR":
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
         else:
+
+            supabase.table("assets").insert(row.to_dict()).execute()
+            
             for col in edited_df.columns:
                 new_val = str(row[col]).strip()
                 supabase.table("audit_log").insert({
@@ -182,9 +184,6 @@ elif tab == "FAR":
                     "user_role": st.session_state.role,  # Add this line to fix the error
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }).execute()
-
-            # Save to Supabase
-            supabase.table("assets").upsert(row.to_dict()).execute()
 
             # Auto-generate QR code
             if asset_id not in st.session_state.qr_codes:
