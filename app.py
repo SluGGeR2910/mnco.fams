@@ -64,22 +64,42 @@ asset_id_qr = st.query_params.get("asset_id")
 
 if asset_id_qr:
     asset_id_qr = asset_id_qr.strip()
+    
+    # Fetch FAR data
     far_df_qr = fetch_far()
+    
+    # Validate asset_id column exists
+    if "asset_id" not in far_df_qr.columns:
+        st.error("❌ 'asset_id' column missing in FAR data.")
+        st.stop()
+    
+    # Fetch passcode from DB
+    try:
+        conn = psycopg2.connect(**st.secrets["db_credentials"])
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = 'qr_viewer_passcode'")
+        result = cur.fetchone()
+        stored_passcode = result[0] if result else None
+        cur.close()
+        conn.close()
+        
+        if not stored_passcode:
+            st.error("❌ No passcode configured in settings table.")
+            st.stop()
+    except Exception as e:
+        st.error(f"❌ Error fetching passcode: {e}")
+        st.stop()
 
-    conn = psycopg2.connect(**st.secrets["db_credentials"])
-    cur = conn.cursor()
-    cur.execute("SELECT value FROM settings WHERE key = 'qr_viewer_passcode'")
-    stored_passcode = cur.fetchone()[0]
-    cur.close()
-    conn.close()
-
+    # Sidebar info
     st.sidebar.markdown("### 🧭 QR Redirect Active")
     st.sidebar.info(f"Scanned Asset ID: {asset_id_qr}")
 
+    # Initialize passcode state
     if "qr_passcode_ok" not in st.session_state or st.session_state.get("last_qr") != asset_id_qr:
         st.session_state.qr_passcode_ok = False
         st.session_state.last_qr = asset_id_qr
 
+    # Prompt passcode
     if not st.session_state.qr_passcode_ok:
         entered_passcode = st.text_input("🔑 Enter QR Viewer Passcode", type="password")
         if entered_passcode:
@@ -90,13 +110,16 @@ if asset_id_qr:
                 st.error("❌ Incorrect passcode.")
                 st.stop()
 
-    match = far_df_qr[far_df_qr["asset_id"] == asset_id_qr]
+    # Filter matching asset
+    match = far_df_qr.query(f"asset_id == '{asset_id_qr}'")
+    
     if not match.empty:
-        st.title("🔍 Asset Info from QR")
+        st.title(f"🔍 Asset Info: {asset_id_qr}")
         st.dataframe(match, use_container_width=True)
     else:
         st.title("❌ Asset Not Found")
         st.warning("No matching asset found for this QR.")
+    
     st.stop()
 
 # ----------------------------- NAVIGATION -----------------------------
