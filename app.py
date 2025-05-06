@@ -59,23 +59,53 @@ def fetch_audit_log():
 
 # ----------------------------- QR REDIRECT -----------------------------
 asset_id_qr = st.query_params.get("asset_id", None)
+
 if asset_id_qr:
+    # QR redirect → skip full login, only need passcode
     asset_id_qr = asset_id_qr.strip()
     far_df_qr = fetch_far()
-    match = far_df_qr[far_df_qr["asset_id"] == asset_id_qr]
+
+    # Load passcode from settings table
+    import psycopg2
+    conn = psycopg2.connect(**st.secrets["db_credentials"])
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM settings WHERE key = 'qr_viewer_passcode'")
+    stored_passcode = cur.fetchone()[0]
+    cur.close()
+    conn.close()
 
     st.sidebar.markdown("### 🧭 QR Redirect Active")
+    st.sidebar.info(f"Scanned Asset ID: `{asset_id_qr}`")
+
+    if "qr_passcode_ok" not in st.session_state or st.session_state.get("last_qr") != asset_id_qr:
+        st.session_state.qr_passcode_ok = False
+        st.session_state.last_qr = asset_id_qr
+
+    if not st.session_state.qr_passcode_ok:
+        entered_passcode = st.text_input("🔑 Enter QR Viewer Passcode", type="password")
+        if entered_passcode:
+            if entered_passcode == stored_passcode:
+                st.session_state.qr_passcode_ok = True
+                st.success("✅ Passcode correct!")
+            else:
+                st.error("❌ Incorrect passcode. Try again.")
+                st.stop()
+
+    # Passcode validated → show asset
+    match = far_df_qr[far_df_qr["asset_id"] == asset_id_qr]
     if not match.empty:
-        st.sidebar.success(f"Asset Found: {asset_id_qr}")
         st.title("🔍 Asset Info from QR")
         st.write("Here are the details for the scanned asset:")
         st.dataframe(match, use_container_width=True)
-        st.stop()
     else:
-        st.sidebar.error("Asset ID not found!")
         st.title("❌ Asset Not Found")
         st.warning("No matching asset found for this QR.")
-        st.stop()
+
+    st.stop()  # Stop app here to prevent loading login etc
+
+# ----------------------------- NORMAL LOGIN -----------------------------
+# (rest of your app here → normal username/password login logic)
+
 
 # ----------------------------- NAVIGATION -----------------------------
 tabs = ["Home", "QR Codes"]
@@ -112,65 +142,72 @@ elif tab == "FAR":
 
     # Save button for Admins
     if is_admin and st.button("💾 Save Changes"):
-        edited_df = edited_df.fillna("")
-        original_ids = set(original_df["asset_id"].astype(str))
-        updated_ids = set(edited_df["asset_id"].astype(str))
+    edited_df = edited_df.fillna("")
+    original_ids = set(original_df["asset_id"].astype(str))
+    updated_ids = set(edited_df["asset_id"].astype(str))
+    int_columns = ["asset_id", "quantity", "your_other_numeric_columns"]
 
-        # Loop through edited rows
-        for _, row in edited_df.iterrows():
-            asset_id = str(row["asset_id"]).strip()
-            old_row = original_df[original_df["asset_id"] == asset_id]
+    for _, row in edited_df.iterrows():
+        asset_id = str(row["asset_id"]).strip()
+        old_row = original_df[original_df["asset_id"] == asset_id]
 
-            # Update or Insert
-            if not old_row.empty:
-                for col in edited_df.columns:
-                    old = str(old_row.iloc[0][col]).strip()
-                    new = str(row[col]).strip()
-                    if old != new:
-                        supabase.table("audit_log").insert({
-                            "asset_id": asset_id,
-                            "action": "update",
-                            "details": f"{col} changed from {old} to {new}",
-                            "changed_by": st.session_state.username,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }).execute()
+        # Type casting
+        row_clean = row.copy()
+        for col in int_columns:
+            if col in row_clean and pd.notnull(row_clean[col]):
+                row_clean[col] = int(float(row_clean[col]))
             else:
-                for col in edited_df.columns:
-                    new_val = str(row[col]).strip()
+                row_clean[col] = None  # optional if nullable column
+
+        # Log changes
+        if not old_row.empty:
+            for col in edited_df.columns:
+                old_val = str(old_row.iloc[0][col]).strip()
+                new_val = str(row_clean[col]).strip() if col in row_clean else ""
+                if old_val != new_val:
                     supabase.table("audit_log").insert({
                         "asset_id": asset_id,
-                        "action": "insert",
-                        "details": f"{col} = {new_val}",
+                        "action": "update",
+                        "details": f"{col} changed from {old_val} to {new_val}",
                         "changed_by": st.session_state.username,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
+        else:
+            for col in edited_df.columns:
+                new_val = str(row_clean[col]).strip() if col in row_clean else ""
+                supabase.table("audit_log").insert({
+                    "asset_id": asset_id,
+                    "action": "insert",
+                    "details": f"{col} = {new_val}",
+                    "changed_by": st.session_state.username,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }).execute()
 
-            # Save to Supabase
-            supabase.table("assets").upsert(row.to_dict()).execute()
+        supabase.table("assets").upsert(row_clean.to_dict()).execute()
 
-            # Auto-generate QR code
-            if asset_id not in st.session_state.qr_codes:
-                qr_url = f"https://slugtries.onrender.com?asset_id={asset_id}"
-                qr_img = qrcode.make(qr_url)
-                buffer = io.BytesIO()
-                qr_img.save(buffer, format="PNG")
-                buffer.seek(0)
-                st.session_state.qr_codes[asset_id] = buffer.getvalue()
+        # Auto-generate QR code
+        if asset_id not in st.session_state.qr_codes:
+            qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
+            qr_img = qrcode.make(qr_url)
+            buffer = io.BytesIO()
+            qr_img.save(buffer, format="PNG")
+            buffer.seek(0)
+            st.session_state.qr_codes[asset_id] = buffer.getvalue()
 
-        # Handle deletions
-        deleted_ids = original_ids - updated_ids
-        for asset_id in deleted_ids:
-            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-            supabase.table("audit_log").insert({
-                "asset_id": asset_id,
-                "action": "delete",
-                "details": "Asset deleted",
-                "changed_by": st.session_state.username,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
-            st.session_state.qr_codes.pop(asset_id, None)
+    # Handle deletions
+    deleted_ids = original_ids - updated_ids
+    for asset_id in deleted_ids:
+        supabase.table("assets").delete().eq("asset_id", asset_id).execute()
+        supabase.table("audit_log").insert({
+            "asset_id": asset_id,
+            "action": "delete",
+            "details": "Asset deleted",
+            "changed_by": st.session_state.username,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }).execute()
+        st.session_state.qr_codes.pop(asset_id, None)
 
-        st.success("✅ Changes saved and QR codes updated!")
+    st.success("✅ Changes saved and QR codes updated!")
 
     # Excel download
     with st.expander("⬇️ Download FAR"):
