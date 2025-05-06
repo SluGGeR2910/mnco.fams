@@ -221,3 +221,4 @@ elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
             if user_filter:
                 filtered = filtered[filtered["changed_by"].str.contains(user_filter, case=False)]
             st.dataframe(filtered, use_container_width=True)
+
