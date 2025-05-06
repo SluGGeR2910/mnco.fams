@@ -21,6 +21,10 @@ DB_CREDENTIALS = {
     "port": st.secrets["db_credentials"]["port"],
     "dbname": st.secrets["db_credentials"]["dbname"]
 }
+
+st.write("Secrets keys loaded:", list(st.secrets.keys()))
+
+
 # ----------------------------- SESSION DEFAULTS -----------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
