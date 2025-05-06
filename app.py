@@ -1,3 +1,4 @@
+You said:
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
@@ -75,7 +76,7 @@ if asset_id_qr:
     conn.close()
 
     st.sidebar.markdown("### 🧭 QR Redirect Active")
-    st.sidebar.info(f"Scanned Asset ID: `{asset_id_qr}`")
+    st.sidebar.info(f"Scanned Asset ID: {asset_id_qr}")
 
     if "qr_passcode_ok" not in st.session_state or st.session_state.get("last_qr") != asset_id_qr:
         st.session_state.qr_passcode_ok = False
@@ -106,6 +107,7 @@ if asset_id_qr:
 # ----------------------------- NORMAL LOGIN -----------------------------
 # (rest of your app here → normal username/password login logic)
 
+
 # ----------------------------- NAVIGATION -----------------------------
 tabs = ["Home", "QR Codes"]
 if st.session_state.role in ["Admin", "Auditor"]:
@@ -119,8 +121,9 @@ if tab == "Home":
     st.write("Track, manage, and retrieve asset info in real-time via QR codes or the FAR.")
 
 # ----------------------------- FAR -----------------------------
+# ----------------------------- FAR -----------------------------
 elif tab == "FAR":
-    st.title("📋 Fixed Asset Register (Editable)")
+    st.title("📋 Fixed Asset Register")
 
     # Only Admins can edit
     is_admin = st.session_state.role == "Admin"
@@ -150,44 +153,45 @@ elif tab == "FAR":
             asset_id = str(row["asset_id"]).strip()
             old_row = original_df[original_df["asset_id"] == asset_id]
 
-            # Update or Insert
-            if not old_row.empty:
-                for col in edited_df.columns:
-                    old = str(old_row.iloc[0][col]).strip()
-                    new = str(row[col]).strip()
-                    if old != new:
-                        supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
-                        supabase.table("audit_log").insert({
-                            "asset_id": asset_id,
-                            "action": "update",
-                            "details": f"{col} changed from {old} to {new}",
-                            "changed_by": st.session_state.username,
-                            "user_role": st.session_state.role,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }).execute()
-            else:
-                insert_data = row.drop("net_block").to_dict()
-                supabase.table("assets").insert(insert_data).execute()
-
-                for col in edited_df.columns:
-                    new_val = str(row[col]).strip()
+        # Update or Insert
+        if not old_row.empty:
+            
+            for col in edited_df.columns:
+                old = str(old_row.iloc[0][col]).strip()
+                new = str(row[col]).strip()
+                if old != new:
+                    supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
                     supabase.table("audit_log").insert({
                         "asset_id": asset_id,
-                        "action": "insert",
-                        "details": f"{col} = {new_val}",
+                        "action": "update",
+                        "details": f"{col} changed from {old} to {new}",
                         "changed_by": st.session_state.username,
-                        "user_role": st.session_state.role,
+                        "user_role": st.session_state.role,  # Add this line to fix the error
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
+        else:
+            insert_data = row.drop("net_block").to_dict()
+            supabase.table("assets").insert(insert_data).execute()
+            
+            for col in edited_df.columns:
+                new_val = str(row[col]).strip()
+                supabase.table("audit_log").insert({
+                    "asset_id": asset_id,
+                    "action": "insert",
+                    "details": f"{col} = {new_val}",
+                    "changed_by": st.session_state.username,
+                    "user_role": st.session_state.role,  # Add this line to fix the error
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }).execute()
 
-                # Auto-generate QR code
-                if asset_id not in st.session_state.qr_codes:
-                    qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}" 
-                    qr_img = qrcode.make(qr_url)
-                    buffer = io.BytesIO()
-                    qr_img.save(buffer, format="PNG")
-                    buffer.seek(0)
-                    st.session_state.qr_codes[asset_id] = buffer.getvalue()
+            # Auto-generate QR code
+            if asset_id not in st.session_state.qr_codes:
+                qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}" 
+                qr_img = qrcode.make(qr_url)
+                buffer = io.BytesIO()
+                qr_img.save(buffer, format="PNG")
+                buffer.seek(0)
+                st.session_state.qr_codes[asset_id] = buffer.getvalue()
 
         # Handle deletions
         deleted_ids = original_ids - updated_ids
