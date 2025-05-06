@@ -24,11 +24,11 @@ if "far_df" not in st.session_state:
 
 # ----------------------------- USER AUTH -----------------------------
 users = {
-    "Slugger": {"password_hash": bcrypt.hashpw("dam2910".encode('utf-8'), bcrypt.gensalt()), "role": "Admin"},
-    "Gautam": {"password_hash": bcrypt.hashpw("mnco".encode('utf-8'), bcrypt.gensalt()), "role": "Admin"},
-    "Client": {"password_hash": bcrypt.hashpw("client321".encode('utf-8'), bcrypt.gensalt()), "role": "Admin"},
-    "Auditor": {"password_hash": bcrypt.hashpw("Auditor321".encode('utf-8'), bcrypt.gensalt()), "role": "Auditor"},
-    "Scan": {"password_hash": bcrypt.hashpw("scan123".encode('utf-8'), bcrypt.gensalt()), "role": "Asset Viewer"}
+    "Slugger": {"password": "dam2910", "role": "Admin"},
+    "Gautam": {"password": "mnco", "role": "Admin"},
+    "Client": {"password": "client321", "role": "Admin"},
+    "Auditor": {"password": "Auditor321", "role": "Auditor"},
+    "Scan": {"password": "scan123", "role": "Asset Viewer"}
 }
 
 def login():
