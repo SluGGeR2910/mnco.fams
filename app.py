@@ -7,7 +7,7 @@ import zipfile
 from PIL import Image
 import qrcode
 from datetime import datetime
-
+import psycopg2
 
 # ----------------------------- CONFIG -----------------------------
 SUPABASE_URL = st.secrets["supabase"]["url"]
@@ -66,7 +66,6 @@ if asset_id_qr:
     far_df_qr = fetch_far()
 
     # Load passcode from settings table
-    import psycopg2
     conn = psycopg2.connect(**st.secrets["db_credentials"])
     cur = conn.cursor()
     cur.execute("SELECT value FROM settings WHERE key = 'qr_viewer_passcode'")
@@ -123,7 +122,7 @@ elif tab == "FAR":
 
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
-    
+
     # Ensure the necessary columns are of correct data type (numeric)
     original_df["cost"] = pd.to_numeric(original_df["cost"], errors='coerce')
     original_df["useful_life"] = pd.to_numeric(original_df["useful_life"], errors='coerce')
@@ -162,30 +161,28 @@ if is_admin and st.button("💾 Save Changes"):
 
                 # Handle numeric columns properly
                 if col in ["cost", "useful_life", "depreciation_rate"]:
-                    # Try to convert to float, then check if integer
                     new = pd.to_numeric(new, errors='coerce')
                     if pd.isna(new):
                         new = 0  # Or use another default value as needed
 
-                    # If it's a float and needs to be an integer, cast it to int
                     if col == "cost" or col == "useful_life" or col == "depreciation_rate":
                         if new.is_integer():
-                            new = int(new)  # Convert to integer if it's a whole number
+                            new = int(new)
                         else:
-                            new = float(new)  # Keep it as a float if it's a decimal number
+                            new = float(new)
 
-                if old != str(new):  # Compare the old value with the new one
+                if old != str(new):  # Compare old and new
                     supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
                     supabase.table("audit_log").insert({
                         "asset_id": asset_id,
                         "action": "update",
                         "details": f"{col} changed from {old} to {new}",
                         "changed_by": st.session_state.username,
-                        "user_role": st.session_state.role,  
+                        "user_role": st.session_state.role if st.session_state.role else "Unknown",  # Ensure no null value
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
         else:
-            insert_data = row.drop("net_block").to_dict()  # Exclude net_block during insert
+            insert_data = row.drop("net_block").to_dict()
             supabase.table("assets").insert(insert_data).execute()
 
             for col in edited_df.columns:
@@ -195,7 +192,7 @@ if is_admin and st.button("💾 Save Changes"):
                     "action": "insert",
                     "details": f"{col} = {new_val}",
                     "changed_by": st.session_state.username,
-                    "user_role": st.session_state.role,  
+                    "user_role": st.session_state.role if st.session_state.role else "Unknown",
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }).execute()
 
@@ -217,13 +214,12 @@ if is_admin and st.button("💾 Save Changes"):
                 "action": "delete",
                 "details": "Asset deleted",
                 "changed_by": st.session_state.username,
+                "user_role": st.session_state.role if st.session_state.role else "Unknown",
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }).execute()
             st.session_state.qr_codes.pop(asset_id, None)
 
         st.success("✅ Changes saved and QR codes updated!")
-
-    
 
     # Excel download
     with st.expander("⬇️ Download FAR"):
