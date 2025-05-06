@@ -140,7 +140,7 @@ edited_df = st.data_editor(
     disabled=not is_admin
 )
 
-# Convert the columns to numeric values manually when saving
+# Convert the columns to the correct type (integer or float) before saving
 if is_admin and st.button("💾 Save Changes"):
     edited_df = edited_df.fillna("")  # Handle missing values
     original_ids = set(original_df["asset_id"].astype(str))
@@ -159,11 +159,19 @@ if is_admin and st.button("💾 Save Changes"):
 
                 # Handle numeric columns properly
                 if col in ["cost", "useful_life", "depreciation_rate"]:
+                    # Try to convert to float, then check if integer
                     new = pd.to_numeric(new, errors='coerce')
                     if pd.isna(new):
                         new = 0  # Or use another default value as needed
 
-                if old != new:
+                    # If it's a float and needs to be an integer, cast it to int
+                    if col == "cost" or col == "useful_life" or col == "depreciation_rate":
+                        if new.is_integer():
+                            new = int(new)  # Convert to integer if it's a whole number
+                        else:
+                            new = float(new)  # Keep it as a float if it's a decimal number
+
+                if old != str(new):  # Compare the old value with the new one
                     supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
                     supabase.table("audit_log").insert({
                         "asset_id": asset_id,
