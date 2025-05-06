@@ -154,10 +154,15 @@ elif tab == "FAR":
 
         # Update or Insert
         if not old_row.empty:
+            
             for col in edited_df.columns:
                 old = str(old_row.iloc[0][col]).strip()
                 new = str(row[col]).strip()
+                
                 if old != new:
+
+                    supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
+                    
                     supabase.table("audit_log").insert({
                         "asset_id": asset_id,
                         "action": "update",
