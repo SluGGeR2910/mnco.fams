@@ -159,9 +159,7 @@ elif tab == "FAR":
                 old = str(old_row.iloc[0][col]).strip()
                 new = str(row[col]).strip()
                 if old != new:
-
                     supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
-                    
                     supabase.table("audit_log").insert({
                         "asset_id": asset_id,
                         "action": "update",
@@ -171,9 +169,7 @@ elif tab == "FAR":
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
         else:
-
-            supabase.table("assets").insert(row.to_dict()).execute()
-            
+            supabase.table("assets").insert(row.to_dict()).execute()            
             for col in edited_df.columns:
                 new_val = str(row[col]).strip()
                 supabase.table("audit_log").insert({
