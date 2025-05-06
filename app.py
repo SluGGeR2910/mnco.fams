@@ -236,13 +236,23 @@ elif tab == "FAR":
 
                 # QR code generation for new assets
                 if asset_id not in st.session_state.qr_codes:
+                    # Generate the QR code URL
                     qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
+                
+                    # Create the QR code image
                     qr_img = qrcode.make(qr_url)
                     buffer = io.BytesIO()
                     qr_img.save(buffer, format="PNG")
                     buffer.seek(0)
+                
+                    # Store the generated QR code in session state for later use (optional, for caching)
                     st.session_state.qr_codes[asset_id] = buffer.getvalue()
-
+                
+                    # Optionally, save the QR code as an image file (if required for your database)
+                    with open(f"qr_codes/{asset_id}.png", "wb") as f:
+                        f.write(buffer.getvalue())
+                    
+                
         # Handle asset deletions (assets removed from the table)
         deleted_ids = original_ids - updated_ids
         for asset_id in deleted_ids:
