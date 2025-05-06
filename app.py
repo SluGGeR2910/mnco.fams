@@ -174,7 +174,12 @@ elif tab == "FAR":
             else:
                 # If asset doesn't exist, insert new data
                 insert_data = row.drop("net_block").to_dict()
-                supabase.table("assets").insert(insert_data).execute()
+                try:
+                    supabase.table("assets").insert(insert_data).execute()
+                except Exception as e:
+                    st.error(f"Error inserting data: {e}")
+                    st.write(f"Insert Data: {insert_data}")
+
                 for col in edited_df.columns:
                     supabase.table("audit_log").insert({
                         "asset_id": asset_id,
