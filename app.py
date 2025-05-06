@@ -119,8 +119,13 @@ elif tab == "FAR":
     original_df = fetch_far().fillna("")
 
     numeric_cols = ["cost", "useful_life", "dep_rate"]
+    
+    # Check if columns exist before applying to_numeric
     for col in numeric_cols:
-        original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
+        if col in original_df.columns:
+            original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
+        else:
+            st.warning(f"❌ Column '{col}' is missing in the dataset!")
 
     st.session_state.far_df = original_df
 
