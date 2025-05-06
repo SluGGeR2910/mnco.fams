@@ -22,7 +22,6 @@ DB_CREDENTIALS = {
     "dbname": st.secrets["db_credentials"]["dbname"]
 }
 
-st.write("Secrets keys loaded:", list(st.secrets.keys()))
 
 st.write("Available secrets keys:", list(st.secrets.keys()))
 
