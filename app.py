@@ -36,15 +36,15 @@ def login():
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
     if st.button("Login"):
-        if user in users and bcrypt.checkpw(pwd.encode('utf-8'), users[user]["password_hash"]):
+        if user in users and users[user]["password"] == pwd:
             st.session_state.logged_in = True
             st.session_state.username = user
             st.session_state.role = users[user]["role"]
             st.success(f"✅ Welcome, {user}!")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("❌ Invalid username or password")
-
+            
 if not st.session_state.logged_in:
     login()
     st.stop()
