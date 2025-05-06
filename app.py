@@ -157,6 +157,13 @@ elif tab == "FAR":
                 for col in edited_df.columns:
                     old = str(old_row.iloc[0][col]).strip()
                     new = str(row[col]).strip()
+
+                     # Handle numeric columns properly
+                    if col in ["cost", "useful_life", "depreciation_rate"]:
+                        new = pd.to_numeric(new, errors='coerce')
+                        if pd.isna(new):
+                            new = 0  # Or use another default value as needed
+                        
                     if old != new:
                         supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
                         supabase.table("audit_log").insert({
