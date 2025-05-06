@@ -117,6 +117,8 @@ elif tab == "FAR":
 
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
+    original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
+
 
     # Convert numeric columns to numeric types, coercing errors to NaN
     numeric_cols = ["cost", "useful_life", "dep_rate"]
@@ -138,6 +140,7 @@ elif tab == "FAR":
         original_ids = set(original_df["asset_id"].astype(str))
         updated_ids = set(edited_df["asset_id"].astype(str))
         edited_df["net_block"] = edited_df["cost"] - edited_df["accumulated_dep"]
+        st.session_state.far_df = edited_df
 
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
