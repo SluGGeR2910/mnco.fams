@@ -7,7 +7,7 @@ import zipfile
 from PIL import Image
 import qrcode
 from datetime import datetime
-import bcrypt  # For password hashing
+
 
 # ----------------------------- CONFIG -----------------------------
 SUPABASE_URL = st.secrets["supabase"]["url"]
