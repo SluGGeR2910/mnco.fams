@@ -7,6 +7,7 @@ import zipfile
 from PIL import Image
 import qrcode
 from datetime import datetime
+import bcrypt  # For password hashing
 
 # ----------------------------- CONFIG -----------------------------
 SUPABASE_URL = st.secrets["supabase"]["url"]
@@ -23,11 +24,11 @@ if "far_df" not in st.session_state:
 
 # ----------------------------- USER AUTH -----------------------------
 users = {
-    "Slugger": {"password": "dam2910", "role": "Admin"},
-    "Gautam": {"password": "mnco", "role": "Admin"},
-    "Client": {"password": "client321", "role": "Admin"},
-    "Auditor": {"password": "Auditor321", "role": "Auditor"},
-    "Scan": {"password": "scan123", "role": "Asset Viewer"}
+    "Slugger": {"password_hash": bcrypt.hashpw("dam2910".encode('utf-8'), bcrypt.gensalt()), "role": "Admin"},
+    "Gautam": {"password_hash": bcrypt.hashpw("mnco".encode('utf-8'), bcrypt.gensalt()), "role": "Admin"},
+    "Client": {"password_hash": bcrypt.hashpw("client321".encode('utf-8'), bcrypt.gensalt()), "role": "Admin"},
+    "Auditor": {"password_hash": bcrypt.hashpw("Auditor321".encode('utf-8'), bcrypt.gensalt()), "role": "Auditor"},
+    "Scan": {"password_hash": bcrypt.hashpw("scan123".encode('utf-8'), bcrypt.gensalt()), "role": "Asset Viewer"}
 }
 
 def login():
@@ -35,12 +36,12 @@ def login():
     user = st.text_input("Username")
     pwd = st.text_input("Password", type="password")
     if st.button("Login"):
-        if user in users and users[user]["password"] == pwd:
+        if user in users and bcrypt.checkpw(pwd.encode('utf-8'), users[user]["password_hash"]):
             st.session_state.logged_in = True
             st.session_state.username = user
             st.session_state.role = users[user]["role"]
             st.success(f"✅ Welcome, {user}!")
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("❌ Invalid username or password")
 
@@ -61,7 +62,6 @@ def fetch_audit_log():
 asset_id_qr = st.query_params.get("asset_id", None)
 
 if asset_id_qr:
-    # QR redirect → skip full login, only need passcode
     asset_id_qr = asset_id_qr.strip()
     far_df_qr = fetch_far()
 
@@ -91,7 +91,6 @@ if asset_id_qr:
                 st.error("❌ Incorrect passcode. Try again.")
                 st.stop()
 
-    # Passcode validated → show asset
     match = far_df_qr[far_df_qr["asset_id"] == asset_id_qr]
     if not match.empty:
         st.title("🔍 Asset Info from QR")
@@ -101,11 +100,10 @@ if asset_id_qr:
         st.title("❌ Asset Not Found")
         st.warning("No matching asset found for this QR.")
 
-    st.stop()  # Stop app here to prevent loading login etc
+    st.stop()
 
 # ----------------------------- NORMAL LOGIN -----------------------------
-# (rest of your app here → normal username/password login logic)
-
+# Further code for normal login remains the same
 
 # ----------------------------- NAVIGATION -----------------------------
 tabs = ["Home", "QR Codes"]
@@ -120,18 +118,14 @@ if tab == "Home":
     st.write("Track, manage, and retrieve asset info in real-time via QR codes or the FAR.")
 
 # ----------------------------- FAR -----------------------------
-# ----------------------------- FAR -----------------------------
 elif tab == "FAR":
     st.title("📋 Fixed Asset Register (Editable)")
 
-    # Only Admins can edit
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
 
-    # Save in session
     st.session_state.far_df = original_df
 
-    # Editable table
     st.markdown("🔧 Edit the asset data below:")
     edited_df = st.data_editor(
         original_df,
@@ -140,59 +134,52 @@ elif tab == "FAR":
         disabled=not is_admin
     )
 
-    # Save button for Admins
     if is_admin and st.button("💾 Save Changes"):
-        # Indent everything below this line to be inside the if block
         edited_df = edited_df.fillna("")
         original_ids = set(original_df["asset_id"].astype(str))
         updated_ids = set(edited_df["asset_id"].astype(str))
 
-        # Loop through edited rows
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
             old_row = original_df[original_df["asset_id"] == asset_id]
 
-        # Update or Insert
-        if not old_row.empty:
-            
-            for col in edited_df.columns:
-                old = str(old_row.iloc[0][col]).strip()
-                new = str(row[col]).strip()
-                if old != new:
-                    supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
+            if not old_row.empty:
+                for col in edited_df.columns:
+                    old = str(old_row.iloc[0][col]).strip()
+                    new = str(row[col]).strip()
+                    if old != new:
+                        supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
+                        supabase.table("audit_log").insert({
+                            "asset_id": asset_id,
+                            "action": "update",
+                            "details": f"{col} changed from {old} to {new}",
+                            "changed_by": st.session_state.username,
+                            "user_role": st.session_state.role,
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }).execute()
+            else:
+                insert_data = row.drop("net_block").to_dict()
+                supabase.table("assets").insert(insert_data).execute()
+
+                for col in edited_df.columns:
+                    new_val = str(row[col]).strip()
                     supabase.table("audit_log").insert({
                         "asset_id": asset_id,
-                        "action": "update",
-                        "details": f"{col} changed from {old} to {new}",
+                        "action": "insert",
+                        "details": f"{col} = {new_val}",
                         "changed_by": st.session_state.username,
-                        "user_role": st.session_state.role,  # Add this line to fix the error
+                        "user_role": st.session_state.role,
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
-        else:
-            insert_data = row.drop("net_block").to_dict()
-            supabase.table("assets").insert(insert_data).execute()
-            
-            for col in edited_df.columns:
-                new_val = str(row[col]).strip()
-                supabase.table("audit_log").insert({
-                    "asset_id": asset_id,
-                    "action": "insert",
-                    "details": f"{col} = {new_val}",
-                    "changed_by": st.session_state.username,
-                    "user_role": st.session_state.role,  # Add this line to fix the error
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }).execute()
 
-            # Auto-generate QR code
-            if asset_id not in st.session_state.qr_codes:
-                qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}" 
-                qr_img = qrcode.make(qr_url)
-                buffer = io.BytesIO()
-                qr_img.save(buffer, format="PNG")
-                buffer.seek(0)
-                st.session_state.qr_codes[asset_id] = buffer.getvalue()
+                if asset_id not in st.session_state.qr_codes:
+                    qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
+                    qr_img = qrcode.make(qr_url)
+                    buffer = io.BytesIO()
+                    qr_img.save(buffer, format="PNG")
+                    buffer.seek(0)
+                    st.session_state.qr_codes[asset_id] = buffer.getvalue()
 
-        # Handle deletions
         deleted_ids = original_ids - updated_ids
         for asset_id in deleted_ids:
             supabase.table("assets").delete().eq("asset_id", asset_id).execute()
