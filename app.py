@@ -23,7 +23,6 @@ DB_CREDENTIALS = {
 }
 
 
-st.write("Available secrets keys:", list(st.secrets.keys()))
 
 
 # ----------------------------- SESSION DEFAULTS -----------------------------
