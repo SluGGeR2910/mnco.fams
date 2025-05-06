@@ -127,7 +127,7 @@ elif tab == "FAR":
     # Ensure the necessary columns are of correct data type (numeric)
     original_df["cost"] = pd.to_numeric(original_df["cost"], errors='coerce')
     original_df["useful_life"] = pd.to_numeric(original_df["useful_life"], errors='coerce')
-    original_df["depreciation_rate"] = pd.to_numeric(original_df["depreciation_rate"], errors='coerce')
+    original_df["dep_rate"] = pd.to_numeric(original_df["dep_rate"], errors='coerce')
 
     st.session_state.far_df = original_df
 
