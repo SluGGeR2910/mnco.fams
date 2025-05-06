@@ -123,14 +123,6 @@ elif tab == "FAR":
     numeric_cols = ["cost", "useful_life", "dep_rate"]
     for col in numeric_cols:
         original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
-     # Create editable fields for each row and column
-    for i, row in editable_df.iterrows():
-        for col in editable_df.columns:
-            if col != "asset_id":  # Assuming asset_id should not be editable
-                if editable_df[col].dtype == 'object':
-                    editable_df.at[i, col] = st.text_input(f"Edit {col} for Asset ID {row['asset_id']}", value=row[col])
-                elif editable_df[col].dtype in ['int64', 'float64']:
-                    editable_df.at[i, col] = st.number_input(f"Edit {col} for Asset ID {row['asset_id']}", value=row[col])
 
     # Editable DataFrame using st.dataframe
     edited_df = st.dataframe(original_df)
