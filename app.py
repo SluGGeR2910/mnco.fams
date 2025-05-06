@@ -153,28 +153,30 @@ elif tab == "FAR":
             old_row = original_df[original_df["asset_id"] == asset_id]
 
             # Update or Insert
-            if not old_row.empty:
-                for col in edited_df.columns:
-                    old = str(old_row.iloc[0][col]).strip()
-                    new = str(row[col]).strip()
-                    if old != new:
-                        supabase.table("audit_log").insert({
-                            "asset_id": asset_id,
-                            "action": "update",
-                            "details": f"{col} changed from {old} to {new}",
-                            "changed_by": st.session_state.username,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }).execute()
-            else:
-                for col in edited_df.columns:
-                    new_val = str(row[col]).strip()
-                    supabase.table("audit_log").insert({
-                        "asset_id": asset_id,
-                        "action": "insert",
-                        "details": f"{col} = {new_val}",
-                        "changed_by": st.session_state.username,
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }).execute()
+if not old_row.empty:
+    for col in edited_df.columns:
+        old = str(old_row.iloc[0][col]).strip()
+        new = str(row[col]).strip()
+        if old != new:
+            supabase.table("audit_log").insert({
+                "asset_id": asset_id,
+                "action": "update",
+                "details": f"{col} changed from {old} to {new}",
+                "changed_by": st.session_state.username,
+                "user_role": st.session_state.role,  # Add this line to fix the error
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }).execute()
+else:
+    for col in edited_df.columns:
+        new_val = str(row[col]).strip()
+        supabase.table("audit_log").insert({
+            "asset_id": asset_id,
+            "action": "insert",
+            "details": f"{col} = {new_val}",
+            "changed_by": st.session_state.username,
+            "user_role": st.session_state.role,  # Add this line to fix the error
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }).execute()
 
             # Save to Supabase
             supabase.table("assets").upsert(row.to_dict()).execute()
