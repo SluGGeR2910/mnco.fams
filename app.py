@@ -1,4 +1,4 @@
-import streamlit as st
+    import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 import os
@@ -123,6 +123,11 @@ elif tab == "FAR":
 
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
+    
+    # Ensure the necessary columns are of correct data type (numeric)
+    original_df["cost"] = pd.to_numeric(original_df["cost"], errors='coerce')
+    original_df["useful_life"] = pd.to_numeric(original_df["useful_life"], errors='coerce')
+    original_df["depreciation_rate"] = pd.to_numeric(original_df["depreciation_rate"], errors='coerce')
 
     st.session_state.far_df = original_df
 
@@ -132,6 +137,11 @@ elif tab == "FAR":
         use_container_width=True,
         num_rows="dynamic" if is_admin else "fixed",
         disabled=not is_admin
+        column_config={
+            "cost": st.column_config.Number("Cost", help="Enter the cost of the asset"),
+            "useful_life": st.column_config.Number("Useful Life", help="Enter the useful life of the asset (in years)"),
+            "depreciation_rate": st.column_config.Number("Depreciation Rate", help="Enter the depreciation rate")
+        }
     )
 
     if is_admin and st.button("💾 Save Changes"):
