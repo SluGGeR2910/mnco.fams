@@ -137,6 +137,7 @@ elif tab == "FAR":
         edited_df = edited_df.fillna("")  # Replace NaN with empty strings for simplicity
         original_ids = set(original_df["asset_id"].astype(str))
         updated_ids = set(edited_df["asset_id"].astype(str))
+        edited_df["net_block"] = edited_df["cost"] - edited_df["accumulated_dep"]
 
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
