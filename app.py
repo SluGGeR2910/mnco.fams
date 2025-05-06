@@ -247,10 +247,16 @@ elif tab == "FAR":
                 
                     # Store the generated QR code in session state for later use (optional, for caching)
                     st.session_state.qr_codes[asset_id] = buffer.getvalue()
-                
-                    # Optionally, save the QR code as an image file (if required for your database)
-                    with open(f"qr_codes/{asset_id}.png", "wb") as f:
+                    
+                    # Ensure that the qr_codes directory exists
+                    qr_codes_dir = "qr_codes"
+                    if not os.path.exists(qr_codes_dir):
+                        os.makedirs(qr_codes_dir)  # Create the directory if it doesn't exist
+                    
+                    # Now, save the QR code image to the directory
+                    with open(f"{qr_codes_dir}/{asset_id}.png", "wb") as f:
                         f.write(buffer.getvalue())
+
                     
                 
         # Handle asset deletions (assets removed from the table)
