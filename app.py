@@ -123,7 +123,7 @@ if tab == "Home":
 # ----------------------------- FAR -----------------------------
 # ----------------------------- FAR -----------------------------
 elif tab == "FAR":
-    st.title("📋 Fixed Asset Register")
+    st.title("📋 Fixed Asset Register (Editable)")
 
     # Only Admins can edit
     is_admin = st.session_state.role == "Admin"
