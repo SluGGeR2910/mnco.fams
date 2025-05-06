@@ -154,6 +154,9 @@ if is_admin and st.button("💾 Save Changes"):
         # Update or Insert
         if not old_row.empty:
             for col in edited_df.columns:
+                if col == "net_block":  # Skip updating net_block
+                    continue  # Do not update the generated column
+                
                 old = str(old_row.iloc[0][col]).strip()
                 new = str(row[col]).strip()
 
@@ -182,7 +185,7 @@ if is_admin and st.button("💾 Save Changes"):
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
         else:
-            insert_data = row.drop("net_block").to_dict()
+            insert_data = row.drop("net_block").to_dict()  # Exclude net_block during insert
             supabase.table("assets").insert(insert_data).execute()
 
             for col in edited_df.columns:
@@ -220,6 +223,7 @@ if is_admin and st.button("💾 Save Changes"):
 
         st.success("✅ Changes saved and QR codes updated!")
 
+    
 
     # Excel download
     with st.expander("⬇️ Download FAR"):
