@@ -174,6 +174,10 @@ elif tab == "FAR":
             else:
                 # If asset doesn't exist, insert new data
                 insert_data = row.drop("net_block").to_dict()
+                
+                insert_data["useful_life"] = int(insert_data["useful_life"])
+                insert_data["dep_rate"] = float(insert_data["dep_rate"])  # keep float
+
                 try:
                     supabase.table("assets").insert(insert_data).execute()
                 except Exception as e:
