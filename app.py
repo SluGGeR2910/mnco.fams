@@ -138,9 +138,9 @@ elif tab == "FAR":
         num_rows="dynamic" if is_admin else "fixed",
         disabled=not is_admin,
         column_config={
-            "cost": st.column_config.Number("Cost", help="Enter the cost of the asset"),
-            "useful_life": st.column_config.Number("Useful Life", help="Enter the useful life of the asset (in years)"),
-            "depreciation_rate": st.column_config.Number("Depreciation Rate", help="Enter the depreciation rate")
+            "cost": st.column_config.Number("Cost"),
+            "useful_life": st.column_config.Number("Useful Life"),
+            "depreciation_rate": st.column_config.Number("dep_rate")
         }
     )
 
