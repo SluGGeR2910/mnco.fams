@@ -118,16 +118,16 @@ elif tab == "FAR":
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
 
-    # Allow editing of the FAR
-    edited_df = st.dataframe(original_df, use_container_width=True)
-
     # Example of handling numeric columns before insertion or update
     numeric_cols = ["cost", "useful_life", "dep_rate"]
     for col in numeric_cols:
         original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
 
+    # Editable DataFrame using st.dataframe
+    edited_df = st.dataframe(original_df)
+
     if st.button("Save Changes"):
-        updated_ids = set()
+        # Handling the update or insertion of data
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
             old_row = original_df[original_df["asset_id"] == asset_id]
@@ -180,12 +180,11 @@ elif tab == "FAR":
 
         st.success("✅ Changes saved and QR codes updated!")
 
-        # Provide an option to download the FAR data
-        with st.expander("⬇️ Download FAR"):
-            excel_buf = io.BytesIO()
-            edited_df.to_excel(excel_buf, index=False)
-            excel_buf.seek(0)
-            st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
+    with st.expander("⬇️ Download FAR"):
+        excel_buf = io.BytesIO()
+        edited_df.to_excel(excel_buf, index=False)
+        excel_buf.seek(0)
+        st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
 
 # ----------------------------- QR CODES -----------------------------
 elif tab == "QR Codes" and st.session_state.role == "Admin":
