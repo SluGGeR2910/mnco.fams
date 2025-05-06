@@ -14,6 +14,13 @@ SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+DB_CREDENTIALS = {
+    "host": st.secrets["db_credentials"]["host"],
+    "user": st.secrets["db_credentials"]["user"],
+    "password": st.secrets["db_credentials"]["password"],
+    "port": st.secrets["db_credentials"]["port"],
+    "dbname": st.secrets["db_credentials"]["dbname"]
+}
 # ----------------------------- SESSION DEFAULTS -----------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
