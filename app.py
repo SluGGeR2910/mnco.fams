@@ -117,18 +117,26 @@ elif tab == "FAR":
 
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
-    editable_df = original_df.copy()
 
-    # Example of handling numeric columns before insertion or update
     numeric_cols = ["cost", "useful_life", "dep_rate"]
     for col in numeric_cols:
         original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
 
-    # Editable DataFrame using st.dataframe
-    edited_df = st.dataframe(original_df)
+    st.session_state.far_df = original_df
 
-    if st.button("Save Changes"):
-        # Handling the update or insertion of data
+    st.markdown("🔧 Edit the asset data below:")
+    edited_df = st.data_editor(
+        original_df,
+        use_container_width=True,
+        num_rows="dynamic" if is_admin else "fixed",
+        disabled=not is_admin
+    )
+
+    if is_admin and st.button("💾 Save Changes"):
+        edited_df = edited_df.fillna("")
+        original_ids = set(original_df["asset_id"].astype(str))
+        updated_ids = set(edited_df["asset_id"].astype(str))
+
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
             old_row = original_df[original_df["asset_id"] == asset_id]
@@ -140,13 +148,8 @@ elif tab == "FAR":
                     old = str(old_row.iloc[0][col]).strip()
                     new = row[col]
                     if col in numeric_cols:
-                        # Ensure it is an integer if the column expects it
-                        if pd.notna(new) and isinstance(new, float) and new.is_integer():
-                            new = int(new)  # Convert float to integer if it represents a whole number
-                        elif pd.notna(new):
-                            new = round(new)  # Round to integer if it's not a whole number
-                        else:
-                            new = 0  # Set to 0 if it's NaN or invalid
+                        new = pd.to_numeric(new, errors='coerce')
+                        new = int(new) if pd.notna(new) and new == int(new) else float(new) if pd.notna(new) else 0
                     if old != str(new):
                         supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
                         supabase.table("audit_log").insert({
@@ -170,7 +173,6 @@ elif tab == "FAR":
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
 
-                # Handle QR codes (optional step if needed)
                 if asset_id not in st.session_state.qr_codes:
                     qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
                     qr_img = qrcode.make(qr_url)
@@ -178,6 +180,18 @@ elif tab == "FAR":
                     qr_img.save(buffer, format="PNG")
                     buffer.seek(0)
                     st.session_state.qr_codes[asset_id] = buffer.getvalue()
+
+        deleted_ids = original_ids - updated_ids
+        for asset_id in deleted_ids:
+            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
+            supabase.table("audit_log").insert({
+                "asset_id": asset_id,
+                "action": "delete",
+                "details": "Asset deleted",
+                "changed_by": st.session_state.username,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }).execute()
+            st.session_state.qr_codes.pop(asset_id, None)
 
         st.success("✅ Changes saved and QR codes updated!")
 
@@ -222,4 +236,3 @@ elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
             if user_filter:
                 filtered = filtered[filtered["changed_by"].str.contains(user_filter, case=False)]
             st.dataframe(filtered, use_container_width=True)
-
