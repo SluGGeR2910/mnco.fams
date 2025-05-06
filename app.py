@@ -119,74 +119,77 @@ elif tab == "FAR":
     original_df = fetch_far().fillna("")
 
     # Example of handling numeric columns before insertion or update
-numeric_cols = ["cost", "useful_life", "dep_rate"]
-for col in numeric_cols:
-    original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
+    numeric_cols = ["cost", "useful_life", "dep_rate"]
+    for col in numeric_cols:
+        original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
 
-# When updating or inserting values, ensure to cast floats to integers if the column expects integers
-for _, row in edited_df.iterrows():
-    asset_id = str(row["asset_id"]).strip()
-    old_row = original_df[original_df["asset_id"] == asset_id]
+    # Now the edited_df should be defined before this block
+    edited_df = original_df.copy()  # Make sure this is defined before use
 
-    if not old_row.empty:
-        for col in edited_df.columns:
-            if col == "net_block":
-                continue
-            old = str(old_row.iloc[0][col]).strip()
-            new = row[col]
-            if col in numeric_cols:
-                # Ensure it is an integer if the column expects it
-                if pd.notna(new) and isinstance(new, float) and new.is_integer():
-                    new = int(new)  # Convert float to integer if it represents a whole number
-                elif pd.notna(new):
-                    new = round(new)  # Round to integer if it's not a whole number
-                else:
-                    new = 0  # Set to 0 if it's NaN or invalid
-            if old != str(new):
-                supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
+    # Handling the update or insertion of data
+    for _, row in edited_df.iterrows():
+        asset_id = str(row["asset_id"]).strip()
+        old_row = original_df[original_df["asset_id"] == asset_id]
+
+        if not old_row.empty:
+            for col in edited_df.columns:
+                if col == "net_block":
+                    continue
+                old = str(old_row.iloc[0][col]).strip()
+                new = row[col]
+                if col in numeric_cols:
+                    # Ensure it is an integer if the column expects it
+                    if pd.notna(new) and isinstance(new, float) and new.is_integer():
+                        new = int(new)  # Convert float to integer if it represents a whole number
+                    elif pd.notna(new):
+                        new = round(new)  # Round to integer if it's not a whole number
+                    else:
+                        new = 0  # Set to 0 if it's NaN or invalid
+                if old != str(new):
+                    supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
+                    supabase.table("audit_log").insert({
+                        "asset_id": asset_id,
+                        "action": "update",
+                        "details": f"{col} changed from {old} to {new}",
+                        "changed_by": st.session_state.username,
+                        "user_role": st.session_state.role,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }).execute()
+        else:
+            insert_data = row.drop("net_block").to_dict()
+            supabase.table("assets").insert(insert_data).execute()
+            for col in edited_df.columns:
                 supabase.table("audit_log").insert({
                     "asset_id": asset_id,
-                    "action": "update",
-                    "details": f"{col} changed from {old} to {new}",
+                    "action": "insert",
+                    "details": f"{col} = {str(row[col]).strip()}",
                     "changed_by": st.session_state.username,
                     "user_role": st.session_state.role,
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }).execute()
-    else:
-        insert_data = row.drop("net_block").to_dict()
-        supabase.table("assets").insert(insert_data).execute()
-        for col in edited_df.columns:
-            supabase.table("audit_log").insert({
-                "asset_id": asset_id,
-                "action": "insert",
-                "details": f"{col} = {str(row[col]).strip()}",
-                "changed_by": st.session_state.username,
-                "user_role": st.session_state.role,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
 
-            # Handle QR codes (optional step if needed)
-            if asset_id not in st.session_state.qr_codes:
-                qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
-                qr_img = qrcode.make(qr_url)
-                buffer = io.BytesIO()
-                qr_img.save(buffer, format="PNG")
-                buffer.seek(0)
-                st.session_state.qr_codes[asset_id] = buffer.getvalue()
+                # Handle QR codes (optional step if needed)
+                if asset_id not in st.session_state.qr_codes:
+                    qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
+                    qr_img = qrcode.make(qr_url)
+                    buffer = io.BytesIO()
+                    qr_img.save(buffer, format="PNG")
+                    buffer.seek(0)
+                    st.session_state.qr_codes[asset_id] = buffer.getvalue()
 
-        deleted_ids = original_ids - updated_ids
-        for asset_id in deleted_ids:
-            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-            supabase.table("audit_log").insert({
-                "asset_id": asset_id,
-                "action": "delete",
-                "details": "Asset deleted",
-                "changed_by": st.session_state.username,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
-            st.session_state.qr_codes.pop(asset_id, None)
+            deleted_ids = original_ids - updated_ids
+            for asset_id in deleted_ids:
+                supabase.table("assets").delete().eq("asset_id", asset_id).execute()
+                supabase.table("audit_log").insert({
+                    "asset_id": asset_id,
+                    "action": "delete",
+                    "details": "Asset deleted",
+                    "changed_by": st.session_state.username,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }).execute()
+                st.session_state.qr_codes.pop(asset_id, None)
 
-        st.success("✅ Changes saved and QR codes updated!")
+            st.success("✅ Changes saved and QR codes updated!")
 
     with st.expander("⬇️ Download FAR"):
         excel_buf = io.BytesIO()
