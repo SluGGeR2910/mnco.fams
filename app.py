@@ -118,6 +118,7 @@ elif tab == "FAR":
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
 
+    # Convert numeric columns to numeric types, coercing errors to NaN
     numeric_cols = ["cost", "useful_life", "dep_rate"]
     for col in numeric_cols:
         original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
@@ -133,7 +134,7 @@ elif tab == "FAR":
     )
 
     if is_admin and st.button("💾 Save Changes"):
-        edited_df = edited_df.fillna("")
+        edited_df = edited_df.fillna("")  # Replace NaN with empty strings for simplicity
         original_ids = set(original_df["asset_id"].astype(str))
         updated_ids = set(edited_df["asset_id"].astype(str))
 
@@ -144,12 +145,22 @@ elif tab == "FAR":
             if not old_row.empty:
                 for col in edited_df.columns:
                     if col == "net_block":
-                        continue
+                        continue  # Skip if it's a calculated column
                     old = str(old_row.iloc[0][col]).strip()
                     new = row[col]
+
+                    # Handle numeric columns and ensure type conversion
                     if col in numeric_cols:
-                        new = pd.to_numeric(new, errors='coerce')
-                        new = int(new) if pd.notna(new) and new == int(new) else float(new) if pd.notna(new) else 0
+                        new = pd.to_numeric(new, errors='coerce')  # Convert to numeric, NaN if invalid
+                        if pd.notna(new):
+                            if new.is_integer():
+                                new = int(new)  # Convert to integer if whole number
+                            else:
+                                new = round(new, 2)  # Round if it's a float
+                        else:
+                            new = 0  # Set to 0 if NaN
+
+                    # Update the database if the value has changed
                     if old != str(new):
                         supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
                         supabase.table("audit_log").insert({
@@ -161,6 +172,7 @@ elif tab == "FAR":
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }).execute()
             else:
+                # If asset doesn't exist, insert new data
                 insert_data = row.drop("net_block").to_dict()
                 supabase.table("assets").insert(insert_data).execute()
                 for col in edited_df.columns:
@@ -173,6 +185,7 @@ elif tab == "FAR":
                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }).execute()
 
+                # QR code generation for new assets
                 if asset_id not in st.session_state.qr_codes:
                     qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
                     qr_img = qrcode.make(qr_url)
@@ -181,6 +194,7 @@ elif tab == "FAR":
                     buffer.seek(0)
                     st.session_state.qr_codes[asset_id] = buffer.getvalue()
 
+        # Handle asset deletions (assets removed from the table)
         deleted_ids = original_ids - updated_ids
         for asset_id in deleted_ids:
             supabase.table("assets").delete().eq("asset_id", asset_id).execute()
@@ -191,11 +205,12 @@ elif tab == "FAR":
                 "changed_by": st.session_state.username,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }).execute()
-            st.session_state.qr_codes.pop(asset_id, None)
+            st.session_state.qr_codes.pop(asset_id, None)  # Remove QR code for deleted asset
 
         st.success("✅ Changes saved and QR codes updated!")
 
     with st.expander("⬇️ Download FAR"):
+        # Provide option to download the updated FAR as an Excel file
         excel_buf = io.BytesIO()
         edited_df.to_excel(excel_buf, index=False)
         excel_buf.seek(0)
