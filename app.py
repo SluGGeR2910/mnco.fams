@@ -24,6 +24,8 @@ DB_CREDENTIALS = {
 
 st.write("Secrets keys loaded:", list(st.secrets.keys()))
 
+st.write("Available secrets keys:", list(st.secrets.keys()))
+
 
 # ----------------------------- SESSION DEFAULTS -----------------------------
 if "logged_in" not in st.session_state:
