@@ -73,6 +73,11 @@ def fetch_audit_log():
 # ----------------------------- QR REDIRECT -----------------------------
 import psycopg2
 import streamlit as st
+import os
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
 
 # QR redirect logic
 asset_id_qr = st.query_params.get("asset_id")
