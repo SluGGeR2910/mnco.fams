@@ -10,8 +10,15 @@ from datetime import datetime
 import psycopg2
 
 # ----------------------------- CONFIG -----------------------------
-SUPABASE_URL = st.secrets["supabase"]["url"]
-SUPABASE_KEY = st.secrets["supabase"]["key"]
+import streamlit as st
+import os
+
+SUPABASE_URL = st.secrets["supabase"]["url"] if "supabase" in st.secrets else os.getenv("SUPABASE_URL")
+SUPABASE_KEY = st.secrets["supabase"]["key"] if "supabase" in st.secrets else os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("Supabase credentials are not set. Please configure them in secrets or environment variables.")
+    st.stop()
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 DB_CREDENTIALS = {
