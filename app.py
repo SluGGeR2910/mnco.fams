@@ -303,8 +303,6 @@ elif tab == "QR Codes" and st.session_state.role == "Admin":
                     with cols[idx % 4]:
                         st.image(img_bytes, caption=f"Asset ID: {asset_id}", use_column_width=True)
                         st.download_button("Download", img_bytes, file_name=file, key=file)
-    else:
-        st.info("No QR codes yet. Save assets in FAR first.")
 
 # ----------------------------- AUDIT TRAIL -----------------------------
 elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
