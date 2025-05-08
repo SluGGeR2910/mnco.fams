@@ -246,26 +246,17 @@ elif tab == "FAR":
                     }).execute()
 
                 # QR code generation for new assets
-                if asset_id not in st.session_state.qr_codes:
-                    # Generate the QR code URL
+                if asset_id not in st.session_state.qr_codes or not os.path.exists(f"qr_codes/{asset_id}.png"):
                     qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
-                
-                    # Create the QR code image
                     qr_img = qrcode.make(qr_url)
                     buffer = io.BytesIO()
                     qr_img.save(buffer, format="PNG")
                     buffer.seek(0)
-                
-                    # Store the generated QR code in session state for later use (optional, for caching)
                     st.session_state.qr_codes[asset_id] = buffer.getvalue()
-                    
-                    # Ensure that the qr_codes directory exists
-                    qr_codes_dir = "qr_codes"
-                    if not os.path.exists(qr_codes_dir):
-                        os.makedirs(qr_codes_dir)  # Create the directory if it doesn't exist
-                    
-                    # Now, save the QR code image to the directory
-                    with open(f"{qr_codes_dir}/{asset_id}.png", "wb") as f:
+                
+                    if not os.path.exists("qr_codes"):
+                        os.makedirs("qr_codes")
+                    with open(f"qr_codes/{asset_id}.png", "wb") as f:
                         f.write(buffer.getvalue())
 
                     
@@ -295,18 +286,23 @@ elif tab == "FAR":
 # ----------------------------- QR CODES -----------------------------
 elif tab == "QR Codes" and st.session_state.role == "Admin":
     st.title("🔗 QR Codes")
-    qr_list = list(st.session_state.qr_codes.items())
-    if qr_list:
-        cols = st.columns(4)
-        for i, (asset_id, img_data) in enumerate(qr_list):
-            with cols[i % 4]:
-                st.image(Image.open(io.BytesIO(img_data)), caption=asset_id, width=150)
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zipf:
-            for asset_id, img_data in qr_list:
-                zipf.writestr(f"{asset_id}.png", img_data)
-        zip_buffer.seek(0)
-        st.download_button("⬇️ Download All QR Codes", zip_buffer, file_name="All_QR_Codes.zip")
+    
+    qr_codes_dir = "qr_codes"
+    if not os.path.exists(qr_codes_dir):
+        st.warning("QR codes directory not found. No QR codes to show.")
+    else:
+        qr_files = [f for f in os.listdir(qr_codes_dir) if f.endswith(".png")]
+        if not qr_files:
+            st.info("No QR codes generated yet.")
+        else:
+            cols = st.columns(4)
+            for idx, file in enumerate(qr_files):
+                with open(os.path.join(qr_codes_dir, file), "rb") as f:
+                    img_bytes = f.read()
+                    asset_id = file.replace(".png", "")
+                    with cols[idx % 4]:
+                        st.image(img_bytes, caption=f"Asset ID: {asset_id}", use_column_width=True)
+                        st.download_button("Download", img_bytes, file_name=file, key=file)
     else:
         st.info("No QR codes yet. Save assets in FAR first.")
 
