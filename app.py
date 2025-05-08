@@ -271,6 +271,17 @@ elif tab == "FAR":
                     with open(f"qr_codes/{asset_id}.png", "wb") as f:
                         f.write(buffer.getvalue())
 
+        # Log deletion before the asset is deleted
+            supabase.table("audit_log").insert({
+                "asset_id": asset_id,
+                "action": "delete",
+                "details": "Asset deleted",
+                "changed_by": st.session_state.username,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }).execute()
+            
+            # Now delete the asset
+            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
                     
                 
         # Handle asset deletions (assets removed from the table)
@@ -287,6 +298,25 @@ elif tab == "FAR":
             st.session_state.qr_codes.pop(asset_id, None)  # Remove QR code for deleted asset
 
         st.success("✅ Changes saved and QR codes updated!")
+
+            
+        from postgrest.exceptions import APIError
+    
+        try:
+            supabase.table("audit_log").insert({
+                "asset_id": asset_id,
+                "action": "delete",
+                "details": "Asset deleted",
+                "changed_by": st.session_state.username,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }).execute()
+        
+            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
+        
+        except APIError as e:
+            st.error(f"Error during deletion: {e}")
+            st.stop()
+
 
     with st.expander("⬇️ Download FAR"):
         # Provide option to download the updated FAR as an Excel file
