@@ -8,6 +8,8 @@ from PIL import Image
 import qrcode
 from datetime import datetime
 import psycopg2
+from supabase.lib.api_error import APIError  # or correct path
+
 
 # ----------------------------- CONFIG -----------------------------
 import streamlit as st
