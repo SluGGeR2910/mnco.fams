@@ -12,14 +12,14 @@ import psycopg2
 
 
 # ----------------------------- CONFIG -----------------------------
-import streamlit as st
 import os
+import streamlit as st
 
-SUPABASE_URL = st.secrets["supabase"]["url"]
-SUPABASE_KEY = st.secrets["supabase"]["key"]
+SUPABASE_URL = st.secrets.get("supabase", {}).get("url") or os.getenv("SUPABASE_URL")
+SUPABASE_KEY = st.secrets.get("supabase", {}).get("key") or os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("Supabase credentials are not set. Please configure them in secrets or environment variables.")
+    st.error("Supabase credentials not found. Check secrets or environment variables.")
     st.stop()
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -81,11 +81,14 @@ def fetch_audit_log():
 
 # ----------------------------- QR REDIRECT -----------------------------
 import psycopg2
-import streamlit as st
 import os
+import streamlit as st
 
-SUPABASE_URL = st.secrets["supabase"]["url"]
-SUPABASE_KEY = st.secrets["supabase"]["key"]
+SUPABASE_URL = st.secrets.get("supabase", {}).get("url") or os.getenv("SUPABASE_URL")
+SUPABASE_KEY = st.secrets.get("supabase", {}).get("key") or os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("Supabase credentials not found. Check secrets or environment variables.")
 
 
 # QR redirect logic
