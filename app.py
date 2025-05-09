@@ -275,10 +275,7 @@ elif tab == "FAR":
                 }).execute()
                 supabase.table("assets").delete().eq("asset_id", asset_id).execute()
                 st.session_state.qr_codes.pop(asset_id, None)
-            except APIError as e:
-                st.error(f"Error during deletion: {e}")
-                st.stop()
-
+            
         st.success("✅ Changes saved and QR codes updated!")
 
     with st.expander("⬇️ Download FAR"):
