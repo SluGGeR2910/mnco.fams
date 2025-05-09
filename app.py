@@ -280,6 +280,9 @@ elif tab == "FAR":
                     st.session_state.qr_codes.pop(asset_id, None)
 
                     def log_audit(asset_id, action, details):
+                        username = st.session_state.get("username", "unknown")
+                        user_role = st.session_state.get("user_role", "unknown") or "unknown"
+                        
                         supabase.table("audit_log").insert({
                             "asset_id": asset_id,
                             "action": action,
