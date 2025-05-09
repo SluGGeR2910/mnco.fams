@@ -141,7 +141,14 @@ if asset_id_qr:
                     st.success("✅ Passcode correct!")
 
                     # Insert or update the access time in the database
-                    conn = psycopg2.connect(**st.secrets["db_credentials"])
+                    conn = psycopg2.connect(
+                        host=get_secret("db_credentials", "host"),
+                        port=get_secret("db_credentials", "port"),
+                        user=get_secret("db_credentials", "user"),
+                        password=get_secret("db_credentials", "password"),
+                        database=get_secret("db_credentials", "database")
+                    )
+
                     cur = conn.cursor()
                     cur.execute("""
                     INSERT INTO qr_access_log (asset_id, access_granted_at) 
