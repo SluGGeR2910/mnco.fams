@@ -8,7 +8,6 @@ from PIL import Image
 import qrcode
 from datetime import datetime
 import psycopg2
-from supabase import APIError
 
 
 
@@ -265,7 +264,9 @@ elif tab == "FAR":
                 }).execute()
 
             except Exception as e:
-                st.error(f"An unexpected error occurred: {e}")
+                st.error(f"An error occurred: {e}")
+                st.stop()
+
 
                 
             
