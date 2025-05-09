@@ -8,7 +8,8 @@ from PIL import Image
 import qrcode
 from datetime import datetime
 import psycopg2
-from supabase.lib.api_error import APIError  # or correct path
+from supabase import APIError
+
 
 
 # ----------------------------- CONFIG -----------------------------
@@ -263,9 +264,9 @@ elif tab == "FAR":
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }).execute()
 
-            except APIError as e:
-                st.error(f"Error during deletion: {e}")
-                st.stop()
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {e}")
+
                 
             
         st.success("✅ Changes saved and QR codes updated!")
