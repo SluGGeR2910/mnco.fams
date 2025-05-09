@@ -271,31 +271,25 @@ elif tab == "FAR":
                     with open(f"qr_codes/{asset_id}.png", "wb") as f:
                         f.write(buffer.getvalue())
 
-        # Log deletion before the asset is deleted
-            supabase.table("audit_log").insert({
-                "asset_id": asset_id,
-                "action": "delete",
-                "details": "Asset deleted",
-                "changed_by": st.session_state.username,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
-            
-            # Now delete the asset
-            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-                    
-                
         # Handle asset deletions (assets removed from the table)
-        deleted_ids = original_ids - updated_ids
-        for asset_id in deleted_ids:
-            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-            supabase.table("audit_log").insert({
-                "asset_id": asset_id,
-                "action": "delete",
-                "details": "Asset deleted",
-                "changed_by": st.session_state.username,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
-            st.session_state.qr_codes.pop(asset_id, None)  # Remove QR code for deleted asset
+deleted_ids = original_ids - updated_ids
+
+for asset_id in deleted_ids:
+    # Log deletion BEFORE asset is deleted
+    supabase.table("audit_log").insert({
+        "asset_id": asset_id,
+        "action": "delete",
+        "details": "Asset deleted",
+        "changed_by": st.session_state.get("username", "unknown"),
+        "user_role": st.session_state.get("user_role", "unknown"),
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }).execute()
+
+    # Delete the asset
+    supabase.table("assets").delete().eq("asset_id", asset_id).execute()
+
+    # Remove associated QR code if exists
+    st.session_state.qr_codes.pop(asset_id, None)
 
         st.success("✅ Changes saved and QR codes updated!")
 
