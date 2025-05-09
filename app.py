@@ -291,7 +291,7 @@ elif tab == "FAR":
                     # Remove associated QR code if exists
                     st.session_state.qr_codes.pop(asset_id, None)
                 
-                        st.success("✅ Changes saved and QR codes updated!")
+                    st.success("✅ Changes saved and QR codes updated!")
 
             
         from postgrest.exceptions import APIError
