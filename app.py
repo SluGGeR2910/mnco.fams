@@ -184,8 +184,9 @@ elif tab == "FAR":
     
     # Calculate 'net_block'
     original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
-        else:
-            st.error("Missing required columns ('cost' or 'accumulated_dep'). Please check the asset data.")
+    
+else:
+    st.error("Missing required columns ('cost' or 'accumulated_dep'). Please check the asset data.")
 
     # Convert numeric columns to numeric types, coercing errors to NaN
     numeric_cols = ["cost", "useful_life", "dep_rate"]
