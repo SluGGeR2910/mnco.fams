@@ -178,14 +178,14 @@ elif tab == "FAR":
     original_df = fetch_far().fillna("")
 
     # Ensure asset data exists before trying to calculate net_block
-        # Ensure 'cost' and 'accumulated_dep' columns are numeric
-        original_df["cost"] = pd.to_numeric(original_df["cost"], errors='coerce').fillna(0)
-        original_df["accumulated_dep"] = pd.to_numeric(original_df["accumulated_dep"], errors='coerce').fillna(0)
-        
-        # Calculate 'net_block'
-        original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
-    else:
-        st.error("Missing required columns ('cost' or 'accumulated_dep'). Please check the asset data.")
+    # Ensure 'cost' and 'accumulated_dep' columns are numeric
+    original_df["cost"] = pd.to_numeric(original_df["cost"], errors='coerce').fillna(0)
+    original_df["accumulated_dep"] = pd.to_numeric(original_df["accumulated_dep"], errors='coerce').fillna(0)
+    
+    # Calculate 'net_block'
+    original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
+        else:
+            st.error("Missing required columns ('cost' or 'accumulated_dep'). Please check the asset data.")
 
     # Convert numeric columns to numeric types, coercing errors to NaN
     numeric_cols = ["cost", "useful_life", "dep_rate"]
