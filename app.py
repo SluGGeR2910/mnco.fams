@@ -273,8 +273,7 @@ elif tab == "FAR":
                     "changed_by": st.session_state.username,
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }).execute()
-                supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-                st.session_state.qr_codes.pop(asset_id, None)
+                
             
         st.success("✅ Changes saved and QR codes updated!")
 
