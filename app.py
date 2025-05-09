@@ -189,7 +189,7 @@ elif tab == "FAR":
         disabled=not is_admin
     )
 
-        if is_admin and st.button("💾 Save Changes"):
+    if is_admin and st.button("💾 Save Changes"):
         edited_df = edited_df.fillna("")
 
         numeric_cols = ["cost", "accumulated_dep", "net_block", "useful_life", "dep_rate"]
