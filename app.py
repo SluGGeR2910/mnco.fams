@@ -273,6 +273,10 @@ elif tab == "FAR":
                     "changed_by": st.session_state.username,
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }).execute()
+
+        except APIError as e:
+                st.error(f"Error during deletion: {e}")
+                st.stop()
                 
             
         st.success("✅ Changes saved and QR codes updated!")
