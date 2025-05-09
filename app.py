@@ -32,11 +32,11 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 import os
 
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "database": os.getenv("DB_NAME")
+    "host": get_secret("db_credentials", "host"),
+    "port": get_secret("db_credentials", "port"),
+    "user": get_secret("db_credentials", "user"),
+    "password": get_secret("db_credentials", "password"),
+    "database": get_secret("db_credentials", "database")
 }
 
 
