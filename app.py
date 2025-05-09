@@ -211,10 +211,7 @@ elif tab == "FAR":
                     old = str(original_dict[asset_id].get(field, "")).strip()
                     new = edited_dict[asset_id][field]
 
-                    if field in numeric_cols:
-                        new = pd.to_numeric(new, errors="coerce")
-                        new = int(new) if pd.notna(new) and float(new).is_integer() else round(new, 2) if pd.notna(new) else 0
-
+                    
                     if str(old) != str(new):
                         supabase.table("assets").update({field: new}).eq("asset_id", asset_id).execute()
 
