@@ -189,38 +189,43 @@ elif tab == "FAR":
         disabled=not is_admin
     )
 
-    if is_admin and st.button("💾 Save Changes"):
+        if is_admin and st.button("💾 Save Changes"):
         edited_df = edited_df.fillna("")
 
-        # Ensure net_block is treated as numeric manually
         numeric_cols = ["cost", "accumulated_dep", "net_block", "useful_life", "dep_rate"]
         for col in numeric_cols:
             edited_df[col] = pd.to_numeric(edited_df[col], errors="coerce")
 
-        # Compare old and new asset values to detect changes
-        for asset_id in updated_ids:
-            original = original_assets[asset_id]  # from session_state
-            updated = updated_assets[asset_id]    # from edited table
-        
-            for field in original.keys():
-                old = str(original.get(field, ""))
-                new = str(updated.get(field, ""))
-        
-                if old != new:
-                    supabase.table("assets").update({field: new}).eq("asset_id", asset_id).execute()
-        
-                    # Audit log for each field change
-                    supabase.table("audit_log").insert({
-                        "asset_id": asset_id,
-                        "action": "update",
-                        "field": field,
-                        "old_value": old,
-                        "new_value": new,
-                        "changed_by": st.session_state["username"],
-                        "user_role": st.session_state.get("user_role", "unknown"),
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "details": f"{field} changed from '{old}' to '{new}'"
-                    }).execute()
+        original_dict = original_df.set_index("asset_id").to_dict(orient="index")
+        edited_dict = edited_df.set_index("asset_id").to_dict(orient="index")
+
+        for asset_id in edited_dict:
+            if asset_id in original_dict:
+                for field in edited_dict[asset_id]:
+                    old = str(original_dict[asset_id].get(field, "")).strip()
+                    new = edited_dict[asset_id][field]
+
+                    if field in numeric_cols:
+                        new = pd.to_numeric(new, errors="coerce")
+                        new = int(new) if pd.notna(new) and float(new).is_integer() else round(new, 2) if pd.notna(new) else 0
+
+                    if str(old) != str(new):
+                        supabase.table("assets").update({field: new}).eq("asset_id", asset_id).execute()
+
+                        supabase.table("audit_log").insert({
+                            "asset_id": asset_id,
+                            "action": "update",
+                            "field": field,
+                            "old_value": old,
+                            "new_value": new,
+                            "changed_by": st.session_state["username"],
+                            "user_role": st.session_state.get("role", "unknown"),
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "details": f"{field} changed from '{old}' to '{new}'"
+                        }).execute()
+
+        st.success("✅ Changes saved and logged!")
+
         
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
