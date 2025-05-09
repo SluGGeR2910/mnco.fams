@@ -211,16 +211,19 @@ elif tab == "FAR":
         
                     # Audit log for each field change
                     supabase.table("audit_log").insert({
-                        "asset_id": asset_id,
-                        "action": "update",
-                        "field": field,
-                        "old_value": old,
-                        "new_value": new,
-                        "changed_by": st.session_state["username"],
-                        "user_role": st.session_state.get("user_role", "unknown"),
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "details": f"{field} changed from '{old}' to '{new}'"
-                    }).execute()
+                     def log_audit(asset_id, action, details, field=None, old_value=None, new_value=None):
+                        supabase.table("audit_log").insert({
+                            "asset_id": asset_id,
+                            "action": action,
+                            "field": field,
+                            "old_value": old_value,
+                            "new_value": new_value,
+                            "changed_by": st.session_state.get("username", "Unknown"),
+                            "user_role": st.session_state.get("role", "Unknown"),
+                            "timestamp": datetime.now().isoformat(),
+                            "details": details
+                        }).execute()
+
         
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
