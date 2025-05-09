@@ -275,30 +275,30 @@ if is_admin and st.button("💾 Save Changes"):
 
 
             
-        from postgrest.exceptions import APIError
+    from postgrest.exceptions import APIError
+
+    try:
+        supabase.table("audit_log").insert({
+            "asset_id": asset_id,
+            "action": "delete",
+            "details": "Asset deleted",
+            "changed_by": st.session_state.username,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }).execute()
     
-        try:
-            supabase.table("audit_log").insert({
-                "asset_id": asset_id,
-                "action": "delete",
-                "details": "Asset deleted",
-                "changed_by": st.session_state.username,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
-        
-            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-        
-        except APIError as e:
-            st.error(f"Error during deletion: {e}")
-            st.stop()
+        supabase.table("assets").delete().eq("asset_id", asset_id).execute()
+    
+    except APIError as e:
+        st.error(f"Error during deletion: {e}")
+        st.stop()
 
 
-    with st.expander("⬇️ Download FAR"):
-        # Provide option to download the updated FAR as an Excel file
-        excel_buf = io.BytesIO()
-        edited_df.to_excel(excel_buf, index=False)
-        excel_buf.seek(0)
-        st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
+with st.expander("⬇️ Download FAR"):
+    # Provide option to download the updated FAR as an Excel file
+    excel_buf = io.BytesIO()
+    edited_df.to_excel(excel_buf, index=False)
+    excel_buf.seek(0)
+    st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
 
 # ----------------------------- QR CODES -----------------------------
 elif tab == "QR Codes" and st.session_state.role == "Admin":
