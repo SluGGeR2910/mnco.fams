@@ -29,12 +29,14 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     st.stop()
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-DB_CREDENTIALS = {
-    "host": st.secrets["db_credentials"]["host"],
-    "user": st.secrets["db_credentials"]["user"],
-    "password": st.secrets["db_credentials"]["password"],
-    "port": st.secrets["db_credentials"]["port"],
-    "dbname": st.secrets["db_credentials"]["dbname"]
+import os
+
+DB_CONFIG = {
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME")
 }
 
 
