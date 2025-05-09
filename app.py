@@ -12,11 +12,19 @@ import psycopg2
 
 
 # ----------------------------- CONFIG -----------------------------
-import streamlit as st
 import os
+import streamlit as st
 
-SUPABASE_URL = st.secrets["supabase"]["url"] if "supabase" in st.secrets else os.getenv("SUPABASE_URL")
-SUPABASE_KEY = st.secrets["supabase"]["key"] if "supabase" in st.secrets else os.getenv("SUPABASE_KEY")
+# A safe helper function to check for secrets.toml first, then fall back to environment variables
+def get_secret(section, key):
+    try:
+        return st.secrets[section][key]
+    except (KeyError, AttributeError):
+        return os.getenv(f"{section.upper()}_{key.upper()}")
+
+# Now use it like this
+SUPABASE_URL = get_secret("supabase", "url")
+SUPABASE_KEY = get_secret("supabase", "key")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("Supabase credentials are not set. Please configure them in secrets or environment variables.")
