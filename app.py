@@ -197,19 +197,31 @@ elif tab == "FAR":
         for col in numeric_cols:
             edited_df[col] = pd.to_numeric(edited_df[col], errors="coerce")
 
-        original_ids = set(original_df["asset_id"].astype(str))
-        updated_ids = set(edited_df["asset_id"].astype(str))
-
-        def log_audit(asset_id, action, details, field=None, old_value=None, new_value=None):
-            supabase.table("audit_log").insert({
-                "asset_id": asset_id,
-                "action": "delete",
-                "details": "Asset deleted",
-                "changed_by": st.session_state.get("username", "unknown"),
-                "user_role": st.session_state.get("role", "unknown"),
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
-
+        # Compare old and new asset values to detect changes
+        for asset_id in updated_ids:
+            original = original_assets[asset_id]  # from session_state
+            updated = updated_assets[asset_id]    # from edited table
+        
+            for field in original.keys():
+                old = str(original.get(field, ""))
+                new = str(updated.get(field, ""))
+        
+                if old != new:
+                    supabase.table("assets").update({field: new}).eq("asset_id", asset_id).execute()
+        
+                    # Audit log for each field change
+                    supabase.table("audit_log").insert({
+                        "asset_id": asset_id,
+                        "action": "update",
+                        "field": field,
+                        "old_value": old,
+                        "new_value": new,
+                        "changed_by": st.session_state["username"],
+                        "user_role": st.session_state.get("user_role", "unknown"),
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "details": f"{field} changed from '{old}' to '{new}'"
+                    }).execute()
+        
         for _, row in edited_df.iterrows():
             asset_id = str(row["asset_id"]).strip()
             old_row = original_df[original_df["asset_id"] == asset_id]
@@ -256,7 +268,8 @@ elif tab == "FAR":
                     "asset_id": asset_id,
                     "action": "delete",
                     "details": "Asset deleted",
-                    "changed_by": st.session_state.username,
+                    "changed_by": st.session_state.get("username", "unknown"),
+                    "user_role": st.session_state.get("role", "unknown"),
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }).execute()
 
