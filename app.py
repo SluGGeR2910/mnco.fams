@@ -210,7 +210,6 @@ elif tab == "FAR":
                     supabase.table("assets").update({field: new}).eq("asset_id", asset_id).execute()
         
                     # Audit log for each field change
-                    supabase.table("audit_log").insert({
                      def log_audit(asset_id, action, details, field=None, old_value=None, new_value=None):
                         supabase.table("audit_log").insert({
                             "asset_id": asset_id,
