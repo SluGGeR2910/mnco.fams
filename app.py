@@ -194,112 +194,85 @@ elif tab == "FAR":
         disabled=not is_admin
     )
 
-    if is_admin and st.button("💾 Save Changes"):
-        edited_df = edited_df.fillna("")  # Replace NaN with empty strings for simplicity
-        original_ids = set(original_df["asset_id"].astype(str))
-        updated_ids = set(edited_df["asset_id"].astype(str))
-        edited_df["net_block"] = edited_df["cost"] - edited_df["accumulated_dep"]
-        st.session_state.far_df = edited_df
+if is_admin and st.button("💾 Save Changes"):
+    edited_df = edited_df.fillna("")
+    original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
+    edited_df["net_block"] = edited_df["cost"] - edited_df["accumulated_dep"]
 
-        for _, row in edited_df.iterrows():
-            asset_id = str(row["asset_id"]).strip()
-            old_row = original_df[original_df["asset_id"] == asset_id]
+    original_ids = set(original_df["asset_id"].astype(str))
+    updated_ids = set(edited_df["asset_id"].astype(str))
 
-            if not old_row.empty:
-                for col in edited_df.columns:
-                    if col == "net_block":
-                        continue  # Skip if it's a calculated column
-                    old = str(old_row.iloc[0][col]).strip()
-                    new = row[col]
+    numeric_cols = ["cost", "useful_life", "dep_rate"]
 
-                    # Handle numeric columns and ensure type conversion
-                    if col in numeric_cols:
-                        new = pd.to_numeric(new, errors='coerce')  # Convert to numeric, NaN if invalid
-                        if pd.notna(new):
-                            if new.is_integer():
-                                new = int(new)  # Convert to integer if whole number
-                            else:
-                                new = round(new, 2)  # Round if it's a float
-                        else:
-                            new = 0  # Set to 0 if NaN
+    def log_audit(asset_id, action, details, field=None, old_value=None, new_value=None):
+        supabase.table("audit_log").insert({
+            "asset_id": asset_id,
+            "action": action,
+            "field": field,
+            "old_value": str(old_value) if old_value is not None else None,
+            "new_value": str(new_value) if new_value is not None else None,
+            "details": details,
+            "changed_by": st.session_state.get("username", "unknown"),
+            "user_role": st.session_state.get("role", "unknown"),
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }).execute()
 
-                    # Update the database if the value has changed
-                    if old != str(new):
-                        supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
-                        supabase.table("audit_log").insert({
-                            "asset_id": asset_id,
-                            "action": "update",
-                            "details": f"{col} changed from {old} to {new}",
-                            "changed_by": st.session_state.username,
-                            "user_role": st.session_state.role,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }).execute()
-            else:
-                # If asset doesn't exist, insert new data
-                insert_data = row.drop("net_block").to_dict()
-                
-                insert_data["useful_life"] = int(insert_data["useful_life"])
-                insert_data["dep_rate"] = float(insert_data["dep_rate"])  # keep float
+    for _, row in edited_df.iterrows():
+        asset_id = str(row["asset_id"]).strip()
+        old_row = original_df[original_df["asset_id"] == asset_id]
 
-                try:
-                    supabase.table("assets").insert(insert_data).execute()
-                except Exception as e:
-                    st.error(f"Error inserting data: {e}")
-                    st.write(f"Insert Data: {insert_data}")
+        if not old_row.empty:
+            for col in edited_df.columns:
+                if col == "net_block":
+                    continue
+                old = str(old_row.iloc[0][col]).strip()
+                new = row[col]
 
-                for col in edited_df.columns:
-                    supabase.table("audit_log").insert({
-                        "asset_id": asset_id,
-                        "action": "insert",
-                        "details": f"{col} = {str(row[col]).strip()}",
-                        "changed_by": st.session_state.username,
-                        "user_role": st.session_state.role,
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }).execute()
+                if col in numeric_cols:
+                    new = pd.to_numeric(new, errors="coerce")
+                    if pd.notna(new):
+                        new = int(new) if new.is_integer() else round(new, 2)
+                    else:
+                        new = 0
 
-                # QR code generation for new assets
-                if asset_id not in st.session_state.qr_codes or not os.path.exists(f"qr_codes/{asset_id}.png"):
-                    qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
-                    qr_img = qrcode.make(qr_url)
-                    buffer = io.BytesIO()
-                    qr_img.save(buffer, format="PNG")
-                    buffer.seek(0)
-                    st.session_state.qr_codes[asset_id] = buffer.getvalue()
-                
-                    if not os.path.exists("qr_codes"):
-                        os.makedirs("qr_codes")
-                    with open(f"qr_codes/{asset_id}.png", "wb") as f:
-                        f.write(buffer.getvalue())
+                if old != str(new):
+                    supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
+                    log_audit(asset_id, "update", f"{col} changed from {old} to {new}", field=col, old_value=old, new_value=new)
 
-                # Handle asset deletions (assets removed from the table)
-                deleted_ids = original_ids - updated_ids
+        else:
+            # Insert new asset
+            insert_data = row.drop("net_block").to_dict()
+            insert_data["useful_life"] = int(insert_data["useful_life"])
+            insert_data["dep_rate"] = float(insert_data["dep_rate"])
+            supabase.table("assets").insert(insert_data).execute()
 
-                for asset_id in deleted_ids:
-                    log_audit(asset_id, "delete", "Asset deleted")
-                    supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-                    st.session_state.qr_codes.pop(asset_id, None)
+            # Log insert per field
+            for col in edited_df.columns:
+                if col != "net_block":
+                    log_audit(asset_id, "insert", f"{col} = {row[col]}", field=col, new_value=row[col])
 
-                    def log_audit(asset_id, action, details):
-                        username = st.session_state.get("username", "unknown")
-                        user_role = st.session_state.get("user_role", "unknown") or "unknown"
-                        
-                        supabase.table("audit_log").insert({
-                            "asset_id": asset_id,
-                            "action": action,
-                            "details": details,
-                            "changed_by": st.session_state.get("username", "unknown"),
-                            "user_role": st.session_state.get("user_role", "unknown"),
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }).execute()
+            # Generate QR code
+            if asset_id not in st.session_state.qr_codes or not os.path.exists(f"qr_codes/{asset_id}.png"):
+                qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
+                qr_img = qrcode.make(qr_url)
+                buffer = io.BytesIO()
+                qr_img.save(buffer, format="PNG")
+                buffer.seek(0)
+                st.session_state.qr_codes[asset_id] = buffer.getvalue()
 
-                
-                    # Delete the asset
-                    supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-                
-                    # Remove associated QR code if exists
-                    st.session_state.qr_codes.pop(asset_id, None)
-                
-                    st.success("✅ Changes saved and QR codes updated!")
+                os.makedirs("qr_codes", exist_ok=True)
+                with open(f"qr_codes/{asset_id}.png", "wb") as f:
+                    f.write(buffer.getvalue())
+
+    # Handle deletions
+    deleted_ids = original_ids - updated_ids
+    for asset_id in deleted_ids:
+        log_audit(asset_id, "delete", "Asset deleted")
+        supabase.table("assets").delete().eq("asset_id", asset_id).execute()
+        st.session_state.qr_codes.pop(asset_id, None)
+
+    st.success("✅ Changes saved and QR codes updated!")
+
 
             
         from postgrest.exceptions import APIError
