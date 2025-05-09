@@ -80,25 +80,32 @@ def fetch_audit_log():
     return pd.DataFrame(result.data)
 
 # ----------------------------- QR REDIRECT -----------------------------
-    asset_id_qr = st.query_params.get("asset_id", None)
+import streamlit as st
+import pandas as pd
 
-    if asset_id_qr:
-        asset_id_qr = asset_id_qr.strip()
-        asset_row = st.session_state.far_df[st.session_state.far_df["asset_id"] == asset_id_qr]
+# Load your Fixed Asset Register (FAR)
+if "far_data" not in st.session_state:
+    st.session_state["far_data"] = pd.read_excel("fixed_asset_register.xlsx")
 
-        st.sidebar.markdown("### 🧭 QR Redirect Active")
+df = st.session_state["far_data"]
 
-        if not asset_row.empty:
-            st.sidebar.success(f"Asset Found: {asset_id_qr}")
-            st.title("🔍 Asset Info from QR")
-            st.write("Here are the details for the scanned asset:")
-            st.dataframe(asset_row, use_container_width=True)
-            st.stop()
-        else:
-            st.sidebar.error("Asset ID not found in FAR!")
-            st.title("❌ Asset Not Found")
-            st.warning("No matching asset found for this QR.")
-            st.stop()
+# Official way to get query params
+query_params = st.query_params
+asset_id = query_params.get("asset_id", None)
+
+if asset_id:
+    st.title("🔍 Asset Information")
+    asset_row = df[df["Asset ID"] == asset_id]
+
+    if not asset_row.empty:
+        st.success(f"Asset found for ID: {asset_id}")
+        st.dataframe(asset_row)
+    else:
+        st.error(f"🚫 No asset found with ID: {asset_id}")
+else:
+    st.title("🏠 Welcome to Slugger's Digital Asset System")
+    st.info("Scan a QR code to view asset information.")
+
 
 # ----------------------------- NAVIGATION -----------------------------
 tabs = ["Home", "QR Codes"]
@@ -191,15 +198,33 @@ elif tab == "FAR":
                 for col in edited_df.columns:
                         log_audit(asset_id, "insert", f"{col} = {row[col]}", field=col, new_value=row[col])
 
-                if asset_id not in st.session_state.qr_codes or not os.path.exists(f"qr_codes/{asset_id}.png"):
-                    qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
+                import qrcode
+                import io
+                import os
+                import streamlit as st
+                
+                # Initialize qr_codes if not already
+                if "qr_codes" not in st.session_state:
+                    st.session_state.qr_codes = {}
+                
+                # Replace this with the actual asset_id you’re processing
+                asset_id = "ASSET001"  # example
+                
+                # Generate only if not already done or missing file
+                qr_path = f"qr_codes/{asset_id}.png"
+                if asset_id not in st.session_state.qr_codes or not os.path.exists(qr_path):
+                    # ✅ Proper URL with trailing slash before query param
+                    qr_url = f"https://maheshwariandcofams.onrender.com/?asset_id={asset_id}"
+                
                     qr_img = qrcode.make(qr_url)
                     buffer = io.BytesIO()
                     qr_img.save(buffer, format="PNG")
                     buffer.seek(0)
+                
+                    # Save to session_state and disk
                     st.session_state.qr_codes[asset_id] = buffer.getvalue()
                     os.makedirs("qr_codes", exist_ok=True)
-                    with open(f"qr_codes/{asset_id}.png", "wb") as f:
+                    with open(qr_path, "wb") as f:
                         f.write(buffer.getvalue())
 
         # Handle deletions
