@@ -198,6 +198,12 @@ elif tab == "FAR":
             edited_df[col] = pd.to_numeric(edited_df[col], errors="coerce")
 
         # Compare old and new asset values to detect changes
+        if 'updated_ids' in locals():
+            for asset_id in updated_ids:
+                # do stuff
+        else:
+            st.warning("No updated assets found.")
+
         for asset_id in updated_ids:
             original = original_assets[asset_id]  # from session_state
             updated = updated_assets[asset_id]    # from edited table
