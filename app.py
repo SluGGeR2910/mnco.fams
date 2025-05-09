@@ -78,6 +78,14 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
+DB_CONFIG = {
+    "host": get_secret("db_credentials", "host"),
+    "port": get_secret("db_credentials", "port"),
+    "user": get_secret("db_credentials", "user"),
+    "password": get_secret("db_credentials", "password"),
+    "database": get_secret("db_credentials", "database")
+}
+
 # ----------------------------- HELPERS -----------------------------
 def fetch_far():
     result = supabase.table("assets").select("*").execute()
