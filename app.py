@@ -104,7 +104,14 @@ if asset_id_qr:
     far_df_qr = fetch_far()
 
     # Fetch the passcode stored in your database
-    conn = psycopg2.connect(**st.secrets["db_credentials"])
+    conn = psycopg2.connect(
+    host=get_secret("db_credentials", "host"),
+    port=get_secret("db_credentials", "port"),
+    user=get_secret("db_credentials", "user"),
+    password=get_secret("db_credentials", "password"),
+    dbname=get_secret("db_credentials", "database")  # for psycopg2, use dbname not database
+)
+
     cur = conn.cursor()
 
     # Get the stored passcode from the database
