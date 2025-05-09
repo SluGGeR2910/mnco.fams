@@ -177,7 +177,6 @@ elif tab == "FAR":
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
 
-
     st.session_state.far_df = original_df
 
     st.markdown("🔧 Edit the asset data below:")
@@ -190,7 +189,11 @@ elif tab == "FAR":
 
     if is_admin and st.button("💾 Save Changes"):
         edited_df = edited_df.fillna("")
-        edited_df["net_block"] = edited_df["cost"] - edited_df["accumulated_dep"]
+
+        # Ensure net_block is treated as numeric manually
+        numeric_cols = ["cost", "accumulated_dep", "net_block", "useful_life", "dep_rate"]
+        for col in numeric_cols:
+            edited_df[col] = pd.to_numeric(edited_df[col], errors="coerce")
 
         original_ids = set(original_df["asset_id"].astype(str))
         updated_ids = set(edited_df["asset_id"].astype(str))
@@ -214,8 +217,7 @@ elif tab == "FAR":
 
             if not old_row.empty:
                 for col in edited_df.columns:
-                    if col == "net_block":
-                        continue
+                
                     old = str(old_row.iloc[0][col]).strip()
                     new = row[col]
 
@@ -227,13 +229,12 @@ elif tab == "FAR":
                         supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
                         log_audit(asset_id, "update", f"{col} changed from {old} to {new}", field=col, old_value=old, new_value=new)
             else:
-                insert_data = row.drop("net_block").to_dict()
+                insert_data = row.to_dict()
                 insert_data["useful_life"] = int(insert_data["useful_life"])
                 insert_data["dep_rate"] = float(insert_data["dep_rate"])
                 supabase.table("assets").insert(insert_data).execute()
 
                 for col in edited_df.columns:
-                    if col != "net_block":
                         log_audit(asset_id, "insert", f"{col} = {row[col]}", field=col, new_value=row[col])
 
                 if asset_id not in st.session_state.qr_codes or not os.path.exists(f"qr_codes/{asset_id}.png"):
