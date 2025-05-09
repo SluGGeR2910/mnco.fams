@@ -177,20 +177,20 @@ elif tab == "FAR":
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
 
-    # Ensure asset data exists before trying to calculate net_block
-    if 'cost' in original_df.columns and 'accumulated_dep' in original_df.columns:
-        if original_df.empty:
-            st.error("Please enter an asset. No data available for calculation.")
-        else:
-            # Calculate net_block only once if the columns are present
-            original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
-    else:
+    # Ensure required columns exist
+    if 'cost' not in original_df.columns or 'accumulated_dep' not in original_df.columns:
         st.error("Missing required columns ('cost' or 'accumulated_dep'). Please check the asset data.")
+        st.stop()
 
-    # Convert numeric columns to numeric types, coercing errors to NaN
-    numeric_cols = ["cost", "useful_life", "dep_rate"]
+    # Convert to numeric FIRST
+    numeric_cols = ["cost", "accumulated_dep", "useful_life", "dep_rate"]
     for col in numeric_cols:
-        original_df[col] = pd.to_numeric(original_df[col], errors='coerce')
+        original_df[col] = pd.to_numeric(original_df[col], errors="coerce")
+
+    if original_df.empty:
+        st.error("Please enter an asset. No data available for calculation.")
+    else:
+        original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
 
     st.session_state.far_df = original_df
 
@@ -204,15 +204,10 @@ elif tab == "FAR":
 
     if is_admin and st.button("💾 Save Changes"):
         edited_df = edited_df.fillna("")
-        
-        # Recalculate net_block for edited data
         edited_df["net_block"] = edited_df["cost"] - edited_df["accumulated_dep"]
 
-        # Create sets for original and updated asset IDs
         original_ids = set(original_df["asset_id"].astype(str))
         updated_ids = set(edited_df["asset_id"].astype(str))
-
-        numeric_cols = ["cost", "useful_life", "dep_rate"]
 
         def log_audit(asset_id, action, details, field=None, old_value=None, new_value=None):
             supabase.table("audit_log").insert({
@@ -240,28 +235,21 @@ elif tab == "FAR":
 
                     if col in numeric_cols:
                         new = pd.to_numeric(new, errors="coerce")
-                        if pd.notna(new):
-                            new = int(new) if new.is_integer() else round(new, 2)
-                        else:
-                            new = 0
+                        new = int(new) if pd.notna(new) and new.is_integer() else round(new, 2) if pd.notna(new) else 0
 
                     if old != str(new):
                         supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
                         log_audit(asset_id, "update", f"{col} changed from {old} to {new}", field=col, old_value=old, new_value=new)
-
             else:
-                # Insert new asset
                 insert_data = row.drop("net_block").to_dict()
                 insert_data["useful_life"] = int(insert_data["useful_life"])
                 insert_data["dep_rate"] = float(insert_data["dep_rate"])
                 supabase.table("assets").insert(insert_data).execute()
 
-                # Log insert per field
                 for col in edited_df.columns:
                     if col != "net_block":
                         log_audit(asset_id, "insert", f"{col} = {row[col]}", field=col, new_value=row[col])
 
-                # Generate QR code
                 if asset_id not in st.session_state.qr_codes or not os.path.exists(f"qr_codes/{asset_id}.png"):
                     qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
                     qr_img = qrcode.make(qr_url)
@@ -269,43 +257,35 @@ elif tab == "FAR":
                     qr_img.save(buffer, format="PNG")
                     buffer.seek(0)
                     st.session_state.qr_codes[asset_id] = buffer.getvalue()
-
                     os.makedirs("qr_codes", exist_ok=True)
                     with open(f"qr_codes/{asset_id}.png", "wb") as f:
                         f.write(buffer.getvalue())
 
-            # Handle deletions
-            deleted_ids = original_ids - updated_ids
-            for asset_id in deleted_ids:
-                log_audit(asset_id, "delete", "Asset deleted")
+        # Handle deletions
+        deleted_ids = original_ids - updated_ids
+        for asset_id in deleted_ids:
+            log_audit(asset_id, "delete", "Asset deleted")
+            try:
+                supabase.table("audit_log").insert({
+                    "asset_id": asset_id,
+                    "action": "delete",
+                    "details": "Asset deleted",
+                    "changed_by": st.session_state.username,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }).execute()
                 supabase.table("assets").delete().eq("asset_id", asset_id).execute()
                 st.session_state.qr_codes.pop(asset_id, None)
+            except APIError as e:
+                st.error(f"Error during deletion: {e}")
+                st.stop()
 
         st.success("✅ Changes saved and QR codes updated!")
 
-        from postgrest.exceptions import APIError
-
-        try:
-            supabase.table("audit_log").insert({
-                "asset_id": asset_id,
-                "action": "delete",
-                "details": "Asset deleted",
-                "changed_by": st.session_state.username,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }).execute()
-
-            supabase.table("assets").delete().eq("asset_id", asset_id).execute()
-
-        except APIError as e:
-            st.error(f"Error during deletion: {e}")
-            st.stop()
-
-        with st.expander("⬇️ Download FAR"):
-            # Provide option to download the updated FAR as an Excel file
-            excel_buf = io.BytesIO()
-            edited_df.to_excel(excel_buf, index=False)
-            excel_buf.seek(0)
-            st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
+    with st.expander("⬇️ Download FAR"):
+        excel_buf = io.BytesIO()
+        edited_df.to_excel(excel_buf, index=False)
+        excel_buf.seek(0)
+        st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
 
 # ----------------------------- QR CODES -----------------------------
 elif tab == "QR Codes" and st.session_state.role == "Admin":
