@@ -80,7 +80,7 @@ def fetch_audit_log():
     return pd.DataFrame(result.data)
 
 # ----------------------------- QR REDIRECT -----------------------------
-asset_id_qr = st.query_params.get("asset_id", None)
+    asset_id_qr = st.query_params.get("asset_id", None)
 
     if asset_id_qr:
         asset_id_qr = asset_id_qr.strip()
