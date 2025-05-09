@@ -84,8 +84,8 @@ import psycopg2
 import streamlit as st
 import os
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+SUPABASE_URL = st.secrets["supabase"]["url"] if "supabase" in st.secrets else os.getenv("SUPABASE_URL")
+SUPABASE_KEY = st.secrets["supabase"]["key"] if "supabase" in st.secrets else os.getenv("SUPABASE_KEY")
 
 
 # QR redirect logic
