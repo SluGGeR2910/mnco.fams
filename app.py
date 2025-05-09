@@ -80,88 +80,25 @@ def fetch_audit_log():
     return pd.DataFrame(result.data)
 
 # ----------------------------- QR REDIRECT -----------------------------
-import psycopg2
-import os
-import streamlit as st
+asset_id_qr = st.query_params.get("asset_id", None)
 
-SUPABASE_URL = st.secrets.get("supabase", {}).get("url") or os.getenv("SUPABASE_URL")
-SUPABASE_KEY = st.secrets.get("supabase", {}).get("key") or os.getenv("SUPABASE_KEY")
+    if asset_id_qr:
+        asset_id_qr = asset_id_qr.strip()
+        asset_row = st.session_state.far_df[st.session_state.far_df["asset_id"] == asset_id_qr]
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("Supabase credentials not found. Check secrets or environment variables.")
+        st.sidebar.markdown("### 🧭 QR Redirect Active")
 
-
-# QR redirect logic
-asset_id_qr = st.query_params.get("asset_id")
-
-if asset_id_qr:
-    asset_id_qr = asset_id_qr.strip()
-    far_df_qr = fetch_far()
-
-    # Fetch the passcode stored in your database
-    conn = psycopg2.connect(**st.secrets["db_credentials"])
-    cur = conn.cursor()
-
-    # Get the stored passcode from the database
-    cur.execute("SELECT value FROM settings WHERE key = 'qr_viewer_passcode'")
-    stored_passcode = cur.fetchone()[0]
-
-    # Check if the passcode was previously entered successfully within the last hour
-    cur.execute("""
-    SELECT access_granted_at 
-    FROM qr_access_log 
-    WHERE asset_id = %s 
-    AND access_granted_at > NOW() - INTERVAL '1 hour'
-    """, (asset_id_qr,))
-    row = cur.fetchone()
-
-    cur.close()
-    conn.close()
-
-    st.sidebar.markdown("### 🧭 QR Redirect Active")
-    st.sidebar.info(f"Scanned Asset ID: {asset_id_qr}")
-
-    # If passcode validation is not successful yet or expired, prompt for passcode
-    if not row:
-        # If there's no validation record or it's expired, prompt for passcode
-        if "qr_passcode_ok" not in st.session_state or st.session_state.get("last_qr") != asset_id_qr:
-            st.session_state.qr_passcode_ok = False
-            st.session_state.last_qr = asset_id_qr
-
-        if not st.session_state.qr_passcode_ok:
-            entered_passcode = st.text_input("🔑 Enter QR Viewer Passcode", type="password")
-            if entered_passcode:
-                if entered_passcode == stored_passcode:
-                    st.session_state.qr_passcode_ok = True
-                    st.success("✅ Passcode correct!")
-
-                    # Insert or update the access time in the database
-                    conn = psycopg2.connect(**st.secrets["db_credentials"])
-                    cur = conn.cursor()
-                    cur.execute("""
-                    INSERT INTO qr_access_log (asset_id, access_granted_at) 
-                    VALUES (%s, NOW()) 
-                    ON CONFLICT (asset_id) DO UPDATE SET access_granted_at = NOW()
-                    """, (asset_id_qr,))
-                    conn.commit()
-                    cur.close()
-                    conn.close()
-
-                else:
-                    st.error("❌ Incorrect passcode.")
-                    st.stop()
-
-    # If passcode validation was successful, show asset info
-    if st.session_state.qr_passcode_ok:
-        match = far_df_qr[far_df_qr["asset_id"] == asset_id_qr]
-        if not match.empty:
+        if not asset_row.empty:
+            st.sidebar.success(f"Asset Found: {asset_id_qr}")
             st.title("🔍 Asset Info from QR")
-            st.dataframe(match, use_container_width=True)
+            st.write("Here are the details for the scanned asset:")
+            st.dataframe(asset_row, use_container_width=True)
+            st.stop()
         else:
+            st.sidebar.error("Asset ID not found in FAR!")
             st.title("❌ Asset Not Found")
             st.warning("No matching asset found for this QR.")
-
-    st.stop()
+            st.stop()
 
 # ----------------------------- NAVIGATION -----------------------------
 tabs = ["Home", "QR Codes"]
