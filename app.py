@@ -275,16 +275,16 @@ elif tab == "FAR":
                 for col in edited_df.columns:
                         log_audit(asset_id, "insert", f"{col} = {row[col]}", field=col, new_value=row[col])
 
-                        # QR code generation for new assets
-                for _, row in edited_df.iterrows():
-                    asset_id = str(row["asset_id"])
-                    if asset_id not in st.session_state.qr_codes:
-                        qr_url = f"mncofams-nprzcmiuxnuomdr7dsjsdd.streamlit.app/?asset_id={asset_id}"
-                        qr_img = qrcode.make(qr_url)
-        
-                        buffer = io.BytesIO()
-                        qr_img.save(buffer, format="PNG")
-                        st.session_state.qr_codes[asset_id] = buffer.getvalue()
+                if asset_id not in st.session_state.qr_codes or not os.path.exists(f"qr_codes/{asset_id}.png"):
+                    qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
+                    qr_img = qrcode.make(qr_url)
+                    buffer = io.BytesIO()
+                    qr_img.save(buffer, format="PNG")
+                    buffer.seek(0)
+                    st.session_state.qr_codes[asset_id] = buffer.getvalue()
+                    os.makedirs("qr_codes", exist_ok=True)
+                    with open(f"qr_codes/{asset_id}.png", "wb") as f:
+                        f.write(buffer.getvalue())
 
         # Handle deletions
         deleted_ids = original_ids - updated_ids
@@ -316,37 +316,25 @@ elif tab == "FAR":
         st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
 
 # ----------------------------- QR CODES -----------------------------
-elif tab == "QR Codes":
-    st.title("📦 QR Codes")
+elif tab == "QR Codes" and st.session_state.role == "Admin":
+    st.title("🔗 QR Codes")
     
-    if not st.session_state.qr_codes:
-        st.info("No QR codes generated yet.")
+    qr_codes_dir = "qr_codes"
+    if not os.path.exists(qr_codes_dir):
+        st.warning("QR codes directory not found. No QR codes to show.")
     else:
-        cols = st.columns(4)
-        for i, (asset_id, img_data) in enumerate(st.session_state.qr_codes.items()):
-            with cols[i % 4]:
-                st.image(img_data, caption=asset_id, use_column_width=True)
-                st.download_button(
-                    label="⬇️ Download",
-                    data=img_data,
-                    file_name=f"{asset_id}.png",
-                    mime="image/png",
-                    key=f"dl_{asset_id}"
-                )
-
-        # Download all as ZIP
-        if st.button("📁 Download All QR Codes as ZIP"):
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w") as zf:
-                for asset_id, img_data in st.session_state.qr_codes.items():
-                    zf.writestr(f"{asset_id}.png", img_data)
-            zip_buffer.seek(0)
-            st.download_button(
-                label="📥 Download ZIP",
-                data=zip_buffer,
-                file_name="qr_codes.zip",
-                mime="application/zip"
-            )
+        qr_files = [f for f in os.listdir(qr_codes_dir) if f.endswith(".png")]
+        if not qr_files:
+            st.info("No QR codes generated yet.")
+        else:
+            cols = st.columns(4)
+            for idx, file in enumerate(qr_files):
+                with open(os.path.join(qr_codes_dir, file), "rb") as f:
+                    img_bytes = f.read()
+                    asset_id = file.replace(".png", "")
+                    with cols[idx % 4]:
+                        st.image(img_bytes, caption=f"Asset ID: {asset_id}", use_column_width=True)
+                        st.download_button("Download", img_bytes, file_name=file, key=file)
 
 # ----------------------------- AUDIT TRAIL -----------------------------
 elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
@@ -365,3 +353,6 @@ elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
             if user_filter:
                 filtered = filtered[filtered["changed_by"].str.contains(user_filter, case=False)]
             st.dataframe(filtered, use_container_width=True)
+
+
+ChatGPT said:
