@@ -177,20 +177,6 @@ elif tab == "FAR":
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
 
-    # Ensure required columns exist
-    if 'cost' not in original_df.columns or 'accumulated_dep' not in original_df.columns:
-        st.error("Missing required columns ('cost' or 'accumulated_dep'). Please check the asset data.")
-        st.stop()
-
-    # Convert to numeric FIRST
-    numeric_cols = ["cost", "accumulated_dep", "useful_life", "dep_rate"]
-    for col in numeric_cols:
-        original_df[col] = pd.to_numeric(original_df[col], errors="coerce")
-
-    if original_df.empty:
-        st.error("Please enter an asset. No data available for calculation.")
-    else:
-        original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
 
     st.session_state.far_df = original_df
 
