@@ -203,11 +203,8 @@ elif tab == "FAR":
         def log_audit(asset_id, action, details, field=None, old_value=None, new_value=None):
             supabase.table("audit_log").insert({
                 "asset_id": asset_id,
-                "action": action,
-                "field": field,
-                "old_value": str(old_value) if old_value is not None else None,
-                "new_value": str(new_value) if new_value is not None else None,
-                "details": details,
+                "action": "delete",
+                "details": "Asset deleted",
                 "changed_by": st.session_state.get("username", "unknown"),
                 "user_role": st.session_state.get("role", "unknown"),
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
