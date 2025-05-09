@@ -176,6 +176,15 @@ elif tab == "FAR":
 
     is_admin = st.session_state.role == "Admin"
     original_df = fetch_far().fillna("")
+    # Ensure asset data exists before trying to calculate net_block
+    if 'cost' in original_df.columns and 'accumulated_dep' in original_df.columns:
+        if original_df.empty:
+            st.error("Please enter an asset. No data available for calculation.")
+        else:
+            original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
+    else:
+        st.error("Missing required columns ('cost' or 'accumulated_dep'). Please check the asset data.")
+
     original_df["net_block"] = original_df["cost"] - original_df["accumulated_dep"]
 
 
