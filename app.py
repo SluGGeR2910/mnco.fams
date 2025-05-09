@@ -15,14 +15,12 @@ import psycopg2
 import os
 import streamlit as st
 
-# A safe helper function to check for secrets.toml first, then fall back to environment variables
 def get_secret(section, key):
     try:
         return st.secrets[section][key]
-    except (KeyError, AttributeError):
+    except:
         return os.getenv(f"{section.upper()}_{key.upper()}")
 
-# Now use it like this
 SUPABASE_URL = get_secret("supabase", "url")
 SUPABASE_KEY = get_secret("supabase", "key")
 
