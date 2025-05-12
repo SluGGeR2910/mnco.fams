@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from supabase import create_client, Client
 import os
 import io
 import zipfile
@@ -7,9 +8,13 @@ from PIL import Image
 import qrcode
 from datetime import datetime
 import psycopg2
-from supabase import create_client, Client
+
+
 
 # ----------------------------- CONFIG -----------------------------
+import os
+import streamlit as st
+
 def get_secret(section, key):
     try:
         return st.secrets[section][key]
@@ -22,8 +27,9 @@ SUPABASE_KEY = get_secret("supabase", "key")
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("Supabase credentials are not set. Please configure them in secrets or environment variables.")
     st.stop()
-
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+import os
 
 DB_CONFIG = {
     "host": get_secret("db_credentials", "host"),
@@ -32,6 +38,9 @@ DB_CONFIG = {
     "password": get_secret("db_credentials", "password"),
     "database": get_secret("db_credentials", "database")
 }
+
+
+
 
 # ----------------------------- SESSION DEFAULTS -----------------------------
 if "logged_in" not in st.session_state:
@@ -69,6 +78,14 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
+DB_CONFIG = {
+    "host": get_secret("db_credentials", "host"),
+    "port": get_secret("db_credentials", "port"),
+    "user": get_secret("db_credentials", "user"),
+    "password": get_secret("db_credentials", "password"),
+    "database": get_secret("db_credentials", "database")
+}
+
 # ----------------------------- HELPERS -----------------------------
 def fetch_far():
     result = supabase.table("assets").select("*").execute()
@@ -78,20 +95,16 @@ def fetch_audit_log():
     result = supabase.table("audit_log").select("*").order("timestamp", desc=True).execute()
     return pd.DataFrame(result.data)
 
-def log_audit(asset_id, action, details, field=None, old_value=None, new_value=None):
-    supabase.table("audit_log").insert({
-        "asset_id": asset_id,
-        "action": action,
-        "field": field,
-        "old_value": old_value,
-        "new_value": new_value,
-        "changed_by": st.session_state.get("username", "unknown"),
-        "user_role": st.session_state.get("role", "unknown"),
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "details": details
-    }).execute()
-
 # ----------------------------- QR REDIRECT -----------------------------
+import psycopg2
+import streamlit as st
+import os
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+
+# QR redirect logic
 asset_id_qr = st.query_params.get("asset_id")
 
 if asset_id_qr:
@@ -100,12 +113,12 @@ if asset_id_qr:
 
     # Fetch the passcode stored in your database
     conn = psycopg2.connect(
-        host=DB_CONFIG["host"],
-        port=DB_CONFIG["port"],
-        user=DB_CONFIG["user"],
-        password=DB_CONFIG["password"],
-        dbname=DB_CONFIG["database"]
-    )
+    host=get_secret("db_credentials", "host"),
+    port=get_secret("db_credentials", "port"),
+    user=get_secret("db_credentials", "user"),
+    password=get_secret("db_credentials", "password"),
+    dbname=get_secret("db_credentials", "database")  # for psycopg2, use dbname not database
+)
 
     cur = conn.cursor()
 
@@ -115,10 +128,10 @@ if asset_id_qr:
 
     # Check if the passcode was previously entered successfully within the last hour
     cur.execute("""
-        SELECT access_granted_at 
-        FROM qr_access_log 
-        WHERE asset_id = %s 
-        AND access_granted_at > NOW() - INTERVAL '1 hour'
+    SELECT access_granted_at 
+    FROM qr_access_log 
+    WHERE asset_id = %s 
+    AND access_granted_at > NOW() - INTERVAL '1 hour'
     """, (asset_id_qr,))
     row = cur.fetchone()
 
@@ -144,18 +157,18 @@ if asset_id_qr:
 
                     # Insert or update the access time in the database
                     conn = psycopg2.connect(
-                        host=DB_CONFIG["host"],
-                        port=DB_CONFIG["port"],
-                        user=DB_CONFIG["user"],
-                        password=DB_CONFIG["password"],
-                        dbname=DB_CONFIG["database"]
+                        host=get_secret("db_credentials", "host"),
+                        port=get_secret("db_credentials", "port"),
+                        user=get_secret("db_credentials", "user"),
+                        password=get_secret("db_credentials", "password"),
+                        database=get_secret("db_credentials", "database")
                     )
 
                     cur = conn.cursor()
                     cur.execute("""
-                        INSERT INTO qr_access_log (asset_id, access_granted_at) 
-                        VALUES (%s, NOW()) 
-                        ON CONFLICT (asset_id) DO UPDATE SET access_granted_at = NOW()
+                    INSERT INTO qr_access_log (asset_id, access_granted_at) 
+                    VALUES (%s, NOW()) 
+                    ON CONFLICT (asset_id) DO UPDATE SET access_granted_at = NOW()
                     """, (asset_id_qr,))
                     conn.commit()
                     cur.close()
@@ -216,10 +229,6 @@ elif tab == "FAR":
         original_dict = original_df.set_index("asset_id").to_dict(orient="index")
         edited_dict = edited_df.set_index("asset_id").to_dict(orient="index")
 
-        original_ids = set(original_dict.keys())
-        updated_ids = set(edited_dict.keys())
-
-        # Handle updates and inserts
         for asset_id in edited_dict:
             if asset_id in original_dict:
                 for field in edited_dict[asset_id]:
@@ -232,97 +241,123 @@ elif tab == "FAR":
 
                     if str(old) != str(new):
                         supabase.table("assets").update({field: new}).eq("asset_id", asset_id).execute()
-                        log_audit(asset_id, "update", f"{field} changed from '{old}' to '{new}'", field=field, old_value=old, new_value=new)
+
+                        supabase.table("audit_log").insert({
+                            "asset_id": asset_id,
+                            "action": "update",
+                            "field": field,
+                            "old_value": old,
+                            "new_value": new,
+                            "changed_by": st.session_state["username"],
+                            "user_role": st.session_state.get("role", "unknown"),
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "details": f"{field} changed from '{old}' to '{new}'"
+                        }).execute()
+
+        st.success("✅ Changes saved and logged!")
+
+        
+        for _, row in edited_df.iterrows():
+            asset_id = str(row["asset_id"]).strip()
+            old_row = original_df[original_df["asset_id"] == asset_id]
+
+            if not old_row.empty:
+                for col in edited_df.columns:
+                
+                    old = str(old_row.iloc[0][col]).strip()
+                    new = row[col]
+
+                    if col in numeric_cols:
+                        new = pd.to_numeric(new, errors="coerce")
+                        new = int(new) if pd.notna(new) and new.is_integer() else round(new, 2) if pd.notna(new) else 0
+
+                    if old != str(new):
+                        supabase.table("assets").update({col: new}).eq("asset_id", asset_id).execute()
+                        log_audit(asset_id, "update", f"{col} changed from {old} to {new}", field=col, old_value=old, new_value=new)
             else:
-                insert_data = edited_dict[asset_id]
+                insert_data = row.to_dict()
                 insert_data["useful_life"] = int(insert_data["useful_life"])
                 insert_data["dep_rate"] = float(insert_data["dep_rate"])
                 supabase.table("assets").insert(insert_data).execute()
 
-                for field, value in insert_data.items():
-                    log_audit(asset_id, "insert", f"{field} = {value}", field=field, new_value=value)
+                for col in edited_df.columns:
+                        log_audit(asset_id, "insert", f"{col} = {row[col]}", field=col, new_value=row[col])
 
-                # Generate QR code
-                qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
-                qr_img = qrcode.make(qr_url)
-                buffer = io
-::contentReference[oaicite:17]{index=17}
- 
-elif tab == "QR Codes":
-    st.title("🏷️ QR Codes for Assets")
+                if asset_id not in st.session_state.qr_codes or not os.path.exists(f"qr_codes/{asset_id}.png"):
+                    qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
+                    qr_img = qrcode.make(qr_url)
+                    buffer = io.BytesIO()
+                    qr_img.save(buffer, format="PNG")
+                    buffer.seek(0)
+                    st.session_state.qr_codes[asset_id] = buffer.getvalue()
+                    os.makedirs("qr_codes", exist_ok=True)
+                    with open(f"qr_codes/{asset_id}.png", "wb") as f:
+                        f.write(buffer.getvalue())
 
-    st.info("QRs are auto-generated for each asset. Click to download, or download all in one go.")
+        # Handle deletions
+        deleted_ids = original_ids - updated_ids
+        for asset_id in deleted_ids:
+            log_audit(asset_id, "delete", "Asset deleted")
+            try:
+                supabase.table("audit_log").insert({
+                    "asset_id": asset_id,
+                    "action": "delete",
+                    "details": "Asset deleted",
+                    "changed_by": st.session_state.get("username", "unknown"),
+                    "user_role": st.session_state.get("role", "unknown"),
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }).execute()
 
-    # Regenerate all QR codes from FAR
-    df = fetch_far()
-    qr_dict = {}
-
-    for _, row in df.iterrows():
-        asset_id = row["asset_id"]
-        qr_url = f"https://maheshwariandcofams.onrender.com?asset_id={asset_id}"
-        qr = qrcode.make(qr_url)
-        buf = io.BytesIO()
-        qr.save(buf, format="PNG")
-        qr_bytes = buf.getvalue()
-        qr_dict[asset_id] = qr_bytes
-
-    # Store in session state
-    st.session_state.qr_codes = qr_dict
-
-    # Display 4-column layout
-    cols = st.columns(4)
-    for idx, (asset_id, qr_data) in enumerate(qr_dict.items()):
-        col = cols[idx % 4]
-        with col:
-            st.image(qr_data, caption=f"ID: {asset_id}", use_column_width=True)
-            st.download_button(
-                label="⬇️ Download",
-                data=qr_data,
-                file_name=f"{asset_id}.png",
-                mime="image/png",
-                key=f"download_{asset_id}"
-            )
-
-    # Download all button
-    if st.button("📦 Download All as ZIP"):
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-            for asset_id, img_data in qr_dict.items():
-                zip_file.writestr(f"{asset_id}.png", img_data)
-        st.download_button(
-            label="⬇️ Download ZIP",
-            data=zip_buffer.getvalue(),
-            file_name="All_QR_Codes.zip",
-            mime="application/zip"
-        )
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+                st.stop()
 
 
-elif tab == "Audit Trail":
-    st.title("🧾 Audit Trail")
+                
+            
+        st.success("✅ Changes saved and QR codes updated!")
 
-    audit_df = fetch_audit_log()
+    with st.expander("⬇️ Download FAR"):
+        excel_buf = io.BytesIO()
+        edited_df.to_excel(excel_buf, index=False)
+        excel_buf.seek(0)
+        st.download_button("Download FAR", excel_buf, file_name="Fixed_Asset_Register.xlsx")
 
-    if audit_df.empty:
-        st.warning("No audit records found.")
+# ----------------------------- QR CODES -----------------------------
+elif tab == "QR Codes" and st.session_state.role == "Admin":
+    st.title("🔗 QR Codes")
+    
+    qr_codes_dir = "qr_codes"
+    if not os.path.exists(qr_codes_dir):
+        st.warning("QR codes directory not found. No QR codes to show.")
     else:
-        audit_df["timestamp"] = pd.to_datetime(audit_df["timestamp"])
-        audit_df = audit_df.sort_values(by="timestamp", ascending=False)
+        qr_files = [f for f in os.listdir(qr_codes_dir) if f.endswith(".png")]
+        if not qr_files:
+            st.info("No QR codes generated yet.")
+        else:
+            cols = st.columns(4)
+            for idx, file in enumerate(qr_files):
+                with open(os.path.join(qr_codes_dir, file), "rb") as f:
+                    img_bytes = f.read()
+                    asset_id = file.replace(".png", "")
+                    with cols[idx % 4]:
+                        st.image(img_bytes, caption=f"Asset ID: {asset_id}", use_column_width=True)
+                        st.download_button("Download", img_bytes, file_name=file, key=file)
 
-        st.dataframe(
-            audit_df[[
-                "timestamp", "asset_id", "action", "field",
-                "old_value", "new_value", "changed_by", "user_role", "details"
-            ]],
-            use_container_width=True
-        )
-
-        # Download as Excel
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
-            audit_df.to_excel(writer, index=False, sheet_name="Audit Log")
-        st.download_button(
-            label="⬇️ Download Audit Trail",
-            data=excel_buffer.getvalue(),
-            file_name="Audit_Trail.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+# ----------------------------- AUDIT TRAIL -----------------------------
+elif tab == "Audit Trail" and st.session_state.role in ["Admin", "Auditor"]:
+    st.title("🕵️ Audit Trail")
+    audit_df = fetch_audit_log()
+    if audit_df.empty:
+        st.info("No changes logged yet.")
+    else:
+        st.dataframe(audit_df, use_container_width=True)
+        with st.expander("🔍 Filter Logs"):
+            asset_filter = st.text_input("Filter by Asset ID")
+            user_filter = st.text_input("Filter by Changed By")
+            filtered = audit_df.copy()
+            if asset_filter:
+                filtered = filtered[filtered["asset_id"].str.contains(asset_filter, case=False)]
+            if user_filter:
+                filtered = filtered[filtered["changed_by"].str.contains(user_filter, case=False)]
+            st.dataframe(filtered, use_container_width=True)
