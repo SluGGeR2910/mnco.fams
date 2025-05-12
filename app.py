@@ -15,32 +15,6 @@ import psycopg2
 import os
 import streamlit as st
 
-def get_secret(section, key):
-    try:
-        return st.secrets[section][key]
-    except:
-        return os.getenv(f"{section.upper()}_{key.upper()}")
-
-SUPABASE_URL = get_secret("supabase", "url")
-SUPABASE_KEY = get_secret("supabase", "key")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("Supabase credentials are not set. Please configure them in secrets or environment variables.")
-    st.stop()
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-import os
-
-DB_CONFIG = {
-    "host": get_secret("db_credentials", "host"),
-    "port": get_secret("db_credentials", "port"),
-    "user": get_secret("db_credentials", "user"),
-    "password": get_secret("db_credentials", "password"),
-    "database": get_secret("db_credentials", "database")
-}
-
-
-
 
 # ----------------------------- SESSION DEFAULTS -----------------------------
 if "logged_in" not in st.session_state:
@@ -77,6 +51,31 @@ def login():
 if not st.session_state.logged_in:
     login()
     st.stop()
+
+DB_CONFIG = {
+    "host": get_secret("db_credentials", "host"),
+    "port": get_secret("db_credentials", "port"),
+    "user": get_secret("db_credentials", "user"),
+    "password": get_secret("db_credentials", "password"),
+    "database": get_secret("db_credentials", "database")
+}
+
+
+def get_secret(section, key):
+    try:
+        return st.secrets[section][key]
+    except:
+        return os.getenv(f"{section.upper()}_{key.upper()}")
+
+SUPABASE_URL = get_secret("supabase", "url")
+SUPABASE_KEY = get_secret("supabase", "key")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("Supabase credentials are not set. Please configure them in secrets or environment variables.")
+    st.stop()
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+import os
 
 DB_CONFIG = {
     "host": get_secret("db_credentials", "host"),
